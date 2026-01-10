@@ -1,6 +1,4 @@
 ﻿using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using Server.Core;
 using Server.Game;
 using Server.Packet;
