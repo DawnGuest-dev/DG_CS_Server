@@ -46,29 +46,43 @@ namespace Server
         
         static void Main(string[] args)
         {
+            // Config Load
+            Data.ConfigManager.LoadConfig();
+            
             // Data Load
             Data.DataManager.Instance.LoadData();
             
-            string host = Dns.GetHostName();
-            IPHostEntry ipHost = Dns.GetHostEntry(host);
-            IPAddress ipAddr = ipHost.AddressList.First(ip => ip.AddressFamily == AddressFamily.InterNetwork);
-            IPEndPoint endPoint = new IPEndPoint(ipAddr, 12345);
+            string host = Data.ConfigManager.Config.IpAddress;
+            int port = Data.ConfigManager.Config.Port;
+            
+            IPAddress ipAddr = IPAddress.Parse(host);
+            IPEndPoint endPoint = new IPEndPoint(ipAddr, port);
             
             // TCP 시작
             _listener.Init(endPoint, () => { return SessionManager.Instance.Generate<GameSession>();});
             
             // RUDP 시작
-            _rudpHandler.Init(12345);
+            _rudpHandler.Init(port);
             
-            Console.WriteLine("Listening...");
+            Console.WriteLine($"Listening on {host}:{port}...");
+            
+            int frameRate = Server.Data.ConfigManager.Config.FrameRate;
+            int tickMs = 1000 / frameRate;
+            
             while (true)
             {
+                long start = Environment.TickCount64;
+                
+                
                 _rudpHandler.Update();
+                GameRoom.Instance.Update();
                 
-                Game.GameRoom.Instance.Update();
+                long end = Environment.TickCount64;
+                long elapsed = end - start;
                 
-                // 실제론 틱 관리 필요
-                Thread.Sleep(15);
+                int wait = tickMs - (int)elapsed;
+                if (wait > 0) Thread.Sleep(wait);
+                     
             }
         }
     }

@@ -42,9 +42,7 @@ namespace DummyClient
         static void Main(string[] args)
         {
             // TCP
-            string host = Dns.GetHostName();
-            IPHostEntry ipHost = Dns.GetHostEntry(host);
-            IPAddress ipAddr = ipHost.AddressList.First(ip => ip.AddressFamily == AddressFamily.InterNetwork);
+            IPAddress ipAddr = IPAddress.Parse("127.0.0.1");
             IPEndPoint endPoint = new IPEndPoint(ipAddr, 12345);
             Socket tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             
