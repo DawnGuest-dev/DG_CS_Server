@@ -2,6 +2,8 @@
 using System.Net.Sockets;
 using System.Text;
 using Common;
+using Common.Packet;
+using DummyClient.Packet;
 using LiteNetLib;
 using LiteNetLib.Utils;
 
@@ -44,6 +46,8 @@ namespace DummyClient
     
     class Program
     {
+        public static int MySessionId = 0;
+        
         static void Main(string[] args)
         {
             // TCP
@@ -53,7 +57,26 @@ namespace DummyClient
             IPEndPoint endPoint = new IPEndPoint(ipAddr, 12345);
             
             Socket tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            tcpSocket.Connect(endPoint);
+            
+            try
+            {
+                tcpSocket.Connect(endPoint);
+                Console.WriteLine("[TCP] Connected to Server: " + tcpSocket.RemoteEndPoint);
+
+                C_LoginReq loginPacket = new()
+                {
+                    AuthToken = "test"
+                };
+
+                byte[] sendData = PacketManager.Instance.Serialize(loginPacket);
+                tcpSocket.Send(sendData);
+                Console.WriteLine("[TCP] Sent Login Packet");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
+            
             
             byte[] buff = new byte[1024];
             int n = tcpSocket.Receive(buff);
@@ -72,50 +95,36 @@ namespace DummyClient
             NetManager netManager = new(listener);
             netManager.ChannelsCount = 3;
             netManager.Start();
-            
             NetDataWriter authWriter = new NetDataWriter();
-            authWriter.Put(mySessionId);
-
-            netManager.Connect("localhost", 12345, authWriter);
 
             while (true)
             {
                 netManager.PollEvents();
                 
-                Thread.Sleep(15);
+                // [TCP 처리]
+                if (tcpSocket.Poll(0, SelectMode.SelectRead))
+                {
+                    byte[] recvBuff = new byte[4096];
+                    int recvBytes = tcpSocket.Receive(recvBuff);
+                    if (recvBytes > 0)
+                    {
+                        // 테스트 1개만 온다고 가정
+                        
+                        byte[] packetData = new byte[recvBytes];
+                        Array.Copy(recvBuff, packetData, recvBytes);
+                    
+                        PacketManager.Instance.OnRecvPacket(packetData);
+                    }
+                }
                 
-                // try
-                // {
-                //     Socket socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                //     
-                //     socket.Connect(endPoint);
-                //     Console.WriteLine($"[Connected] To Server: {socket.RemoteEndPoint}");
-                //     
-                //     for (int i = 0; i < 5; i++)
-                //     {
-                //         string msg = $"Hello Server! Count: {i}";
-                //         byte[] sendBuff = Encoding.UTF8.GetBytes(msg);
-                //         socket.Send(sendBuff);
-                //
-                //         byte[] recvBuff = new byte[1024];
-                //         int recvBytes = socket.Receive(recvBuff);
-                //         
-                //         string recvData = Encoding.UTF8.GetString(recvBuff, 0, recvBytes);
-                //         Console.WriteLine($"[From Server] {recvData}");
-                //         
-                //         Thread.Sleep(1000); 
-                //     }
-                //     
-                //     socket.Shutdown(SocketShutdown.Both);
-                //     socket.Close();
-                //     Console.WriteLine("[Disconnected] Session Closed.");
-                // }
-                // catch (Exception e)
-                // {
-                //     Console.WriteLine(e.ToString());
-                // }
-                //
-                // Thread.Sleep(3000);
+                if (MySessionId > 0 && netManager.IsRunning == false)
+                {
+                    authWriter.Put(mySessionId);
+
+                    netManager.Connect("localhost", 12345, authWriter);
+                }
+                
+                Thread.Sleep(15);
             }
         }
     }

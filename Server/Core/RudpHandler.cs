@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Common;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using Server.Packet;
 
 namespace Server.Core;
 
@@ -70,22 +71,30 @@ public class RudpHandler : INetEventListener
     // 데이터 수신
     public void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channelNumber, DeliveryMethod deliveryMethod)
     {
-        switch (channelNumber)
+        Session session = peer.Tag as Session;
+
+        if (session != null)
         {
-            case NetConfig.Ch_UDP:
-                HandleUDP(peer, reader);
-                break;
-            case NetConfig.Ch_RUDP1:
-                HandleRUDP1(peer, reader);
-                break;
-            case NetConfig.Ch_RUDP2:
-                HandleRUDP2(peer, reader);
-                break;
-            default:
-                Console.WriteLine($"Unknown Channel: {channelNumber}");
-                break;
-            
+            byte[] data = reader.GetRemainingBytes();
+            PacketManager.Instance.OnRecvPacket(session, data);
         }
+        
+        // switch (channelNumber)
+        // {
+        //     case NetConfig.Ch_UDP:
+        //         HandleUDP(peer, reader);
+        //         break;
+        //     case NetConfig.Ch_RUDP1:
+        //         HandleRUDP1(peer, reader);
+        //         break;
+        //     case NetConfig.Ch_RUDP2:
+        //         HandleRUDP2(peer, reader);
+        //         break;
+        //     default:
+        //         Console.WriteLine($"Unknown Channel: {channelNumber}");
+        //         break;
+        //     
+        // }
     }
 
     // 임시 핸들러

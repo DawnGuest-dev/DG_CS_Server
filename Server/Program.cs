@@ -2,6 +2,7 @@
 using System.Net.Sockets;
 using System.Text;
 using Server.Core;
+using Server.Packet;
 
 namespace Server
 {
@@ -22,14 +23,9 @@ namespace Server
 
         public override int OnRecv(ArraySegment<byte> buffer)
         {
-            string recvData = Encoding.UTF8.GetString(buffer.Array, buffer.Offset, buffer.Count);
-            Console.WriteLine($"[From Client] {recvData}");
+            byte[] packetData = buffer.ToArray();
             
-            // Echo
-            string sendData = $"Server Echo: {recvData}";
-            byte[] sendBuff = Encoding.UTF8.GetBytes(sendData);
-            
-            Send(sendBuff);
+            PacketManager.Instance.OnRecvPacket(this, packetData);
             
             return buffer.Count; 
         }
