@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Server.Utils;
 
 namespace Server.Data;
 
@@ -23,12 +24,12 @@ public class ConfigManager
             };
             string jsonString = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(path, jsonString);
-            Console.WriteLine("[Config] Created default ServerConfig.json");
+            LogManager.Info("[Config] Created default ServerConfig.json");
             return;
         }
 
         string text = File.ReadAllText(path);
         Config = JsonSerializer.Deserialize<ServerConfig>(text);
-        Console.WriteLine($"[Config] Loaded - Port: {Config.Port}, FPS: {Config.FrameRate}");
+        LogManager.Info($"[Config] Loaded - Port: {Config.Port}, FPS: {Config.FrameRate}");
     }
 }

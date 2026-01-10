@@ -4,6 +4,7 @@ using LiteNetLib;
 using Server.Core;
 using Server.Game.Room;
 using Server.Packet;
+using Server.Utils;
 
 namespace Server.Game;
 
@@ -48,7 +49,7 @@ public class GameRoom : IJobQueue
             }
         }
             
-        Console.WriteLine($"GameRoom Map Initialized. Grid: {_cellCountY}x{_cellCountX}");
+        LogManager.Info($"GameRoom Map Initialized. Grid: {_cellCountY}x{_cellCountX}");
     }
 
     private Cell GetCell(float x, float z)
@@ -150,7 +151,7 @@ public class GameRoom : IJobQueue
         Cell cell = GetCell(newPlayer.X, newPlayer.Z);
         cell.Add(newPlayer);
         
-        Console.WriteLine($"Player {newPlayer.Id} entered the game room");
+        LogManager.Info($"Player {newPlayer.Id} entered the game room");
     }
 
     public void Leave(int playerId)
@@ -161,7 +162,7 @@ public class GameRoom : IJobQueue
             cell.Remove(player);
             
             player.Session.MyPlayer = null;
-            Console.WriteLine($"Player {player.Id} left the game room");
+            LogManager.Info($"Player {player.Id} left the game room");
         }
     }
 

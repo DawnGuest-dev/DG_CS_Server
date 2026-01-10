@@ -4,6 +4,7 @@ using Common;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using Server.Packet;
+using Server.Utils;
 
 namespace Server.Core;
 
@@ -17,7 +18,7 @@ public class RudpHandler : INetEventListener
         _netManager.ChannelsCount = 3;
         _netManager.Start(port);
         
-        Console.WriteLine("Server Started");
+        LogManager.Info("Server Started");
     }
 
     public void Update()

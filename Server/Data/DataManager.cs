@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Server.Utils;
 
 namespace Server.Data;
 
@@ -28,6 +29,6 @@ public class DataManager
             StatDic.Add(stat.Level, stat);
         }
 
-        Console.WriteLine($"[DataManager] Loaded {StatDic.Count} stats.");
+        LogManager.Info($"[DataManager] Loaded {StatDic.Count} stats.");
     }
 }

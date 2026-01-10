@@ -1,6 +1,7 @@
 ﻿using Common.Packet;
 using Server.Core;
 using Server.Game;
+using Server.Utils;
 
 namespace Server.Packet;
 
@@ -8,7 +9,7 @@ public class PacketHandler
 {
     public static void C_LoginReq(Session session, C_LoginReq packet)
     {
-        Console.WriteLine($"[Login] Token: {packet.AuthToken}");
+        LogManager.Info($"[Login] Token: {packet.AuthToken}");
 
         S_LoginRes res = new()
         {

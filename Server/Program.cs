@@ -4,6 +4,7 @@ using System.Text;
 using Server.Core;
 using Server.Game;
 using Server.Packet;
+using Server.Utils;
 
 namespace Server
 {
@@ -46,6 +47,9 @@ namespace Server
         
         static void Main(string[] args)
         {
+            // Logger Init
+            LogManager.Init();
+            
             // Config Load
             Data.ConfigManager.LoadConfig();
             
@@ -64,7 +68,7 @@ namespace Server
             // RUDP 시작
             _rudpHandler.Init(port);
             
-            Console.WriteLine($"Listening on {host}:{port}...");
+            LogManager.Info($"Listening on {host}:{port}...");
             
             int frameRate = Server.Data.ConfigManager.Config.FrameRate;
             int tickMs = 1000 / frameRate;
