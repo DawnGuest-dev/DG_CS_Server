@@ -9,7 +9,8 @@ public class GameRoom : IJobQueue
     public static GameRoom Instance { get; } = new();
     
     private JobQueue _jobQueue = new();
-    private List<Session> _sessions = new();
+    
+    private Dictionary<int, Player> _players = new();
     
     public void Push(Action job)
     {
@@ -21,20 +22,34 @@ public class GameRoom : IJobQueue
         _jobQueue.Flush();
     }
 
-    public void Enter(Session session)
+    public void Enter(Player newPlayer)
     {
-        _sessions.Add(session);
-        Console.WriteLine($"Session {session.SessionId} entered the game room");
+        if(newPlayer == null) return;
+        
+        if(_players.ContainsKey(newPlayer.Id)) return;
+        
+        _players.Add(newPlayer.Id, newPlayer);
+        newPlayer.Session.MyPlayer = newPlayer;
+        Console.WriteLine($"Player {newPlayer.Id} entered the game room");
     }
 
-    public void Leave(Session session)
+    public void Leave(int playerId)
     {
-        _sessions.Remove(session);
-        Console.WriteLine($"Session {session.SessionId} left the game room");
+        if (_players.Remove(playerId, out Player player))
+        {
+            Console.WriteLine($"Player {player.Id} left the game room");
+            
+            player.Session.MyPlayer = null;
+        }
     }
 
-    public void Broadcast(Session session, BasePacket packet)
+    public void HandleMove(Player player, C_Move packet)
     {
-        Console.WriteLine($"Broadcasting {packet.Id}");
+        if (player == null) return;
+
+        // 1. 서버 메모리 상의 좌표 업데이트
+        player.X = packet.X;
+        player.Y = packet.Y;
+        player.Z = packet.Z;
     }
 }

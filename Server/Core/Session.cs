@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using LiteNetLib;
+using Server.Game;
 
 namespace Server.Core;
 
@@ -22,6 +23,9 @@ public abstract class Session
     private List<ArraySegment<byte>> _pendingList = new();
     private SocketAsyncEventArgs _sendArgs = new();
     private bool _pending = false;
+    
+    // Game
+    public Player MyPlayer { get; set; }
     
     public void Start(Socket socket)
     {

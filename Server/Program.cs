@@ -2,6 +2,7 @@
 using System.Net.Sockets;
 using System.Text;
 using Server.Core;
+using Server.Game;
 using Server.Packet;
 
 namespace Server
@@ -11,14 +12,21 @@ namespace Server
         public override void OnConnected(EndPoint endPoint)
         {
             Console.WriteLine($"OnConnected: {endPoint}, ID: {SessionId}");
-
-            string udpLoginData = $"LOGIN_ID:{SessionId}";
-            Send(Encoding.UTF8.GetBytes(udpLoginData));
         }
 
         public override void OnDisconnected(EndPoint endPoint)
         {
             Console.WriteLine($"OnDisconnected: {endPoint}");
+            
+            int playerId = MyPlayer?.Id ?? 0;
+            
+            if(playerId > 0) Game.GameRoom.Instance.Leave(playerId);
+            {
+                GameRoom.Instance.Push(() =>
+                {
+                    GameRoom.Instance.Leave(playerId);
+                });
+            }
         }
 
         public override int OnRecv(ArraySegment<byte> buffer)

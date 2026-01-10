@@ -53,7 +53,7 @@ public partial class C_Chat : BasePacket
 {
     public override PacketId Id => PacketId.C_Chat;
 
-    public int Msg; // Chat 메시지
+    public string Msg; // Chat 메시지
 }
 
 // [RUDP/Channel 1] 채팅 (Server <-> Client)
@@ -62,6 +62,6 @@ public partial class S_Chat : BasePacket
 {
     public override PacketId Id => PacketId.S_Chat;
 
-    public int Msg; // Chat 메시지
+    public string Msg; // Chat 메시지
     public int PlayerId;
 }

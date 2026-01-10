@@ -14,18 +14,6 @@ namespace DummyClient
         public void OnPeerConnected(NetPeer peer)
         {
             Console.WriteLine("Connected to server");
-
-            NetDataWriter udpWriter = new NetDataWriter();
-            udpWriter.Put("UDP from client");
-            peer.Send(udpWriter, NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
-            
-            NetDataWriter rudp1Writer = new NetDataWriter();
-            rudp1Writer.Put("RUDP1 from client");
-            peer.Send(rudp1Writer, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
-            
-            NetDataWriter rudp2Writer = new NetDataWriter();
-            rudp2Writer.Put("RUDP2 from client");
-            peer.Send(rudp2Writer, NetConfig.Ch_RUDP2, DeliveryMethod.ReliableOrdered);
         }
 
         public void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo) { }

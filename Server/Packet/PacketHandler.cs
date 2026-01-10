@@ -17,28 +17,39 @@ public class PacketHandler
             SpawnPosX = 0, SpawnPosY = 0, SpawnPosZ = 0
         };
         
-        // TODO: 패킷 전송 Helper 필요
         session.Send(PacketManager.Instance.Serialize(res));
+        
+        GameRoom.Instance.Push(() =>
+        {
+            Player newPlayer = new Player()
+            {
+                Id = session.SessionId,
+                Name = "Player" + session.SessionId,
+                Session = session,
+                X = 0, Y = 0, Z = 0
+            };
+            
+            GameRoom.Instance.Enter(newPlayer);
+        });
     }
     
     public static void C_MoveReq(Session session, C_Move packet)
     {
         Console.WriteLine($"[Move] X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
         
-        GameRoom.Instance.Push(() =>
+        GameRoom.Instance.Push(() => 
         {
-            GameRoom.Instance.Broadcast(session, packet);
+            // JobQueue 안에서 안전하게 접근
+            Player player = session.MyPlayer;
+            if (player == null) return;
+
+            GameRoom.Instance.HandleMove(player, packet);
         });
     }
 
     public static void C_ChatReq(Session session, C_Chat packet)
     {
         Console.WriteLine($"[Chat] message: {packet.Msg}");
-        
-        GameRoom.Instance.Push(() =>
-        {
-            GameRoom.Instance.Broadcast(session, packet);
-        });
     }
     
 }
