@@ -22,7 +22,9 @@ namespace DummyClient
 
         public void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channelNumber, DeliveryMethod deliveryMethod)
         {
-            Console.WriteLine($"[Recv Ch-{channelNumber}] {reader.GetString()}");
+            byte[] data = reader.GetRemainingBytes();
+            
+            PacketManager.Instance.OnRecvPacket(data);
         }
 
         public void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader, UnconnectedMessageType messageType) { }
@@ -73,7 +75,9 @@ namespace DummyClient
             netManager.Start();
             
             Console.WriteLine("[UDP] Started");
-
+            
+            float currentX = 0;
+            
             while (true)
             {
                 netManager.PollEvents();
@@ -111,21 +115,18 @@ namespace DummyClient
                 if (netManager.FirstPeer != null &&
                     netManager.FirstPeer.ConnectionState == ConnectionState.Connected)
                 {
+                    currentX += 10;
+                    
                     C_Move movePacket = new()
                     {
-                        X = 100, // 테스트용 고정 좌표 (나중엔 변수 처리)
+                        X = currentX,
                         Y = 0,
                         Z = 100
                     };
                 
                     byte[] pd = PacketManager.Instance.Serialize(movePacket);
-                
-                    // 이동은 보통 UDP(Unreliable or Sequenced) 채널 0 사용
-                    // 여기서는 작성하신대로 Reliable로 보냄
-                    netManager.FirstPeer.Send(pd, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
                     
-                    // 로그 너무 빠르면 주석 처리
-                    // Console.WriteLine("Sent Move Packet");
+                    netManager.FirstPeer.Send(pd, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
                 }
                 
                 Thread.Sleep(15);

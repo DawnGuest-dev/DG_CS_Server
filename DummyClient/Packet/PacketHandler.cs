@@ -21,7 +21,7 @@ public class PacketHandler
     
     public static void S_Move(S_Move packet)
     {
-        Console.WriteLine($"[Move] User: {packet.PlayerId} X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
+        // Console.WriteLine($"[Move] User: {packet.PlayerId} X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
     }
 
     public static void S_Chat(S_Chat packet)

@@ -35,7 +35,7 @@ public class PacketHandler
     
     public static void C_MoveReq(Session session, C_Move packet)
     {
-        Console.WriteLine($"[Move] X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
+        // Console.WriteLine($"[Move] X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
         
         GameRoom.Instance.Push(() => 
         {
