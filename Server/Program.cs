@@ -47,6 +47,7 @@ namespace Server
         {
             // Logger Init
             LogManager.Init();
+            ExceptionManager.Init();
             
             // Config Load
             Data.ConfigManager.LoadConfig();
