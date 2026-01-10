@@ -29,6 +29,8 @@ public class PacketHandler
                 X = 0, Y = 0, Z = 0
             };
             
+            newPlayer.Init(1);
+            
             GameRoom.Instance.Enter(newPlayer);
         });
     }

@@ -46,6 +46,9 @@ namespace Server
         
         static void Main(string[] args)
         {
+            // Data Load
+            Data.DataManager.Instance.LoadData();
+            
             string host = Dns.GetHostName();
             IPHostEntry ipHost = Dns.GetHostEntry(host);
             IPAddress ipAddr = ipHost.AddressList.First(ip => ip.AddressFamily == AddressFamily.InterNetwork);

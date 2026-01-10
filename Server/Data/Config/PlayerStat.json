@@ -1,0 +1,20 @@
+﻿[
+  {
+    "Level": 1,
+    "MaxHp": 100,
+    "Attack": 10,
+    "Speed": 5.0
+  },
+  {
+    "Level": 2,
+    "MaxHp": 150,
+    "Attack": 15,
+    "Speed": 5.5
+  },
+  {
+    "Level": 3,
+    "MaxHp": 200,
+    "Attack": 20,
+    "Speed": 6.0
+  }
+]
