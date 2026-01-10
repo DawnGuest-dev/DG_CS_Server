@@ -127,6 +127,16 @@ namespace DummyClient
                     byte[] pd = PacketManager.Instance.Serialize(movePacket);
                     
                     netManager.FirstPeer.Send(pd, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
+                    
+                    if (Environment.TickCount64 % 2000 < 20) 
+                    {
+                        C_Chat chatPacket = new C_Chat() { Msg = "Hello RUDP!" };
+                        byte[] data = PacketManager.Instance.Serialize(chatPacket);
+                        // 채팅은 RUDP (Channel 1)
+                        netManager.FirstPeer.Send(data, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
+                        Console.WriteLine("Sent Chat Packet");
+                        Thread.Sleep(20); // 중복 전송 방지용 살짝 대기
+                    }
                 }
                 
                 Thread.Sleep(15);

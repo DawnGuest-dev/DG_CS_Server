@@ -195,4 +195,26 @@ public class GameRoom : IJobQueue
         
         Broadcast(player.X, player.Z, moveRes);
     }
+    
+    public void HandleChat(Player player, C_Chat packet)
+    {
+        if (player == null) return;
+        
+        long now = Environment.TickCount64;
+        if(now - player.LastChatTime < 500) // 0.5초 이내에 채팅하면 무시
+        {
+            return;
+        }
+        player.LastChatTime = now;
+        
+        S_Chat chatRes = new()
+        {
+            PlayerId = player.Id,
+            Msg = packet.Msg
+        };
+        
+        Console.WriteLine($"[Chat] {player.Name}({player.Id}): {packet.Msg}");
+        
+        Broadcast(player.X, player.Z, chatRes);
+    }
 }

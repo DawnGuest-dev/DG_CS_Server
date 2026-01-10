@@ -49,7 +49,15 @@ public class PacketHandler
 
     public static void C_ChatReq(Session session, C_Chat packet)
     {
-        Console.WriteLine($"[Chat] message: {packet.Msg}");
+        // Console.WriteLine($"[Chat] message: {packet.Msg}");
+        
+        GameRoom.Instance.Push(() => 
+        {
+            Player player = session.MyPlayer;
+            if (player == null) return;
+
+            GameRoom.Instance.HandleChat(player, packet);
+        });
     }
     
 }
