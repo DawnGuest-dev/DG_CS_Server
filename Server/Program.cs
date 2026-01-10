@@ -34,6 +34,7 @@ namespace Server
     internal class Program
     {
         static Listener _listener = new();
+        static RudpHandler _rudpHandler = new();
         
         static void Main(string[] args)
         {
@@ -42,10 +43,20 @@ namespace Server
             IPAddress ipAddr = ipHost.AddressList[0];
             IPEndPoint endPoint = new IPEndPoint(ipAddr, 12345);
             
+            // TCP 시작
             _listener.Init(endPoint, () => { return new GameSession(); });
-
+            
+            // RUDP 시작
+            _rudpHandler.Init(12345);
+            
             Console.WriteLine("Listening...");
-            while (true) { Thread.Sleep(100); }
+            while (true)
+            {
+                _rudpHandler.Update();
+                
+                // 실제론 틱 관리 필요
+                Thread.Sleep(15);
+            }
         }
     }
 }
