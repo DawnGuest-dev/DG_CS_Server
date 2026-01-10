@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using Server.Utils;
 
 namespace Server.Core;
 
@@ -32,5 +33,17 @@ public class SessionManager
     public void Remove(int sessionId)
     {
         _sessions.TryRemove(sessionId, out _);
+    }
+
+    public void KickAll()
+    {
+        foreach (var session in _sessions.Values)
+        {
+            // TODO: Shutdown 패킷
+            session.Disconnect();
+        }
+        
+        _sessions.Clear();
+        LogManager.Info("All sessions have been kicked.");
     }
 }

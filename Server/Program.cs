@@ -43,8 +43,12 @@ namespace Server
         static Listener _listener = new();
         static RudpHandler _rudpHandler = new();
         
+        static volatile bool _isRunning = true;
+        
         static void Main(string[] args)
         {
+            Console.CancelKeyPress += OnExit;
+            
             // Logger Init
             LogManager.Init();
             ExceptionManager.Init();
@@ -72,7 +76,7 @@ namespace Server
             int frameRate = Server.Data.ConfigManager.Config.FrameRate;
             int tickMs = 1000 / frameRate;
             
-            while (true)
+            while (_isRunning)
             {
                 long start = Environment.TickCount64;
                 
@@ -85,8 +89,26 @@ namespace Server
                 
                 int wait = tickMs - (int)elapsed;
                 if (wait > 0) Thread.Sleep(wait);
-                     
             }
+
+            CleanUp();
+        }
+        
+        private static void OnExit(object? sender, ConsoleCancelEventArgs e)
+        {
+            e.Cancel = true; 
+        
+            _isRunning = false; // 메인 루프 탈출 신호
+        
+            LogManager.Info("Termination Signal Received. Shutting down...");
+        }
+
+        private static void CleanUp()
+        {
+            SessionManager.Instance.KickAll();
+            
+            LogManager.Info("Server Shutdown Complete.");
+            LogManager.Stop();
         }
     }
 }
