@@ -54,6 +54,8 @@ namespace Server
             {
                 _rudpHandler.Update();
                 
+                Game.GameRoom.Instance.Update();
+                
                 // 실제론 틱 관리 필요
                 Thread.Sleep(15);
             }

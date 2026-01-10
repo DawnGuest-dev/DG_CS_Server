@@ -1,5 +1,6 @@
 ﻿using Common.Packet;
 using Server.Core;
+using Server.Game;
 
 namespace Server.Packet;
 
@@ -24,14 +25,20 @@ public class PacketHandler
     {
         Console.WriteLine($"[Move] X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
         
-        // TODO: Broadcast
+        GameRoom.Instance.Push(() =>
+        {
+            GameRoom.Instance.Broadcast(session, packet);
+        });
     }
 
     public static void C_ChatReq(Session session, C_Chat packet)
     {
         Console.WriteLine($"[Chat] message: {packet.Msg}");
         
-        // TODO: Broadcast
+        GameRoom.Instance.Push(() =>
+        {
+            GameRoom.Instance.Broadcast(session, packet);
+        });
     }
     
 }
