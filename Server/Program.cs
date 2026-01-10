@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using Server.Core;
 
@@ -8,7 +9,10 @@ namespace Server
     {
         public override void OnConnected(EndPoint endPoint)
         {
-            Console.WriteLine($"OnConnected: {endPoint}");
+            Console.WriteLine($"OnConnected: {endPoint}, ID: {SessionId}");
+
+            string udpLoginData = $"LOGIN_ID:{SessionId}";
+            Send(Encoding.UTF8.GetBytes(udpLoginData));
         }
 
         public override void OnDisconnected(EndPoint endPoint)
@@ -40,11 +44,11 @@ namespace Server
         {
             string host = Dns.GetHostName();
             IPHostEntry ipHost = Dns.GetHostEntry(host);
-            IPAddress ipAddr = ipHost.AddressList[0];
+            IPAddress ipAddr = ipHost.AddressList.First(ip => ip.AddressFamily == AddressFamily.InterNetwork);
             IPEndPoint endPoint = new IPEndPoint(ipAddr, 12345);
             
             // TCP 시작
-            _listener.Init(endPoint, () => { return new GameSession(); });
+            _listener.Init(endPoint, () => { return SessionManager.Instance.Generate<GameSession>();});
             
             // RUDP 시작
             _rudpHandler.Init(12345);

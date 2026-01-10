@@ -49,19 +49,34 @@ namespace DummyClient
             // TCP
             string host = Dns.GetHostName();
             IPHostEntry ipHost = Dns.GetHostEntry(host);
-            IPAddress ipAddr = ipHost.AddressList[0];
+            IPAddress ipAddr = ipHost.AddressList.First(ip => ip.AddressFamily == AddressFamily.InterNetwork);
             IPEndPoint endPoint = new IPEndPoint(ipAddr, 12345);
+            
+            Socket tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            tcpSocket.Connect(endPoint);
+            
+            byte[] buff = new byte[1024];
+            int n = tcpSocket.Receive(buff);
+            string msg = Encoding.UTF8.GetString(buff, 0, n); // "LOGIN_ID:{SessionId}"
 
-            Console.WriteLine($"[Client] Trying to connect to {endPoint}...");
+            int mySessionId = 0;
+            if (msg.StartsWith("LOGIN_ID:"))
+            {
+                string idStr = msg.Split(':')[1];
+                mySessionId = int.Parse(idStr);
+                Console.WriteLine($"[Client] Connected to Server: {mySessionId}");
+            }
             
             // UDP
             ClientListener listener = new();
             NetManager netManager = new(listener);
             netManager.ChannelsCount = 3;
-            
             netManager.Start();
+            
+            NetDataWriter authWriter = new NetDataWriter();
+            authWriter.Put(mySessionId);
 
-            netManager.Connect("localhost", 12345, "MySecretKey");
+            netManager.Connect("localhost", 12345, authWriter);
 
             while (true)
             {

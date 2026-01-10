@@ -1,10 +1,14 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using LiteNetLib;
 
 namespace Server.Core;
 
 public abstract class Session
 {
+    public int SessionId { get; set; }
+    public NetPeer UdpPeer { get; set; }
+    
     private Socket _socket;
     private int _disconnected = 0;
     
@@ -178,5 +182,14 @@ public abstract class Session
     public abstract int OnRecv(ArraySegment<byte> buffer);
     public abstract void OnConnected(EndPoint endPoint);
     public abstract void OnDisconnected(EndPoint endPoint);
+    
+    // UDP
+    public void SendUDP(byte[] data, byte channel, DeliveryMethod deliveryMethod)
+    {
+        if (UdpPeer != null)
+        {
+            UdpPeer.Send(data, channel, deliveryMethod);
+        }
+    }
     
 }

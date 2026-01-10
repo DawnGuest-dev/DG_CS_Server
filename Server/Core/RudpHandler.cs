@@ -27,7 +27,32 @@ public class RudpHandler : INetEventListener
     // 접속 요청
     public void OnConnectionRequest(ConnectionRequest request)
     {
-        request.AcceptIfKey("MySecretKey");
+        if (request.Data.AvailableBytes >= 4)
+        {
+            int sessionId = request.Data.GetInt();
+
+            Session session = SessionManager.Instance.Find(sessionId);
+
+            if (session != null)
+            {
+                NetPeer peer = request.Accept();
+                
+                session.UdpPeer = peer;
+                peer.Tag = session;
+                
+                Console.WriteLine($"Accepted: {peer.Address}");
+            }
+            else
+            {
+                Console.WriteLine($"Session Not Found: {sessionId}");
+                request.Reject();
+            }
+        }
+        else
+        {
+            Console.WriteLine("Invalid Session ID");
+            request.Reject();
+        }
     }
     
     // 접속 완료
