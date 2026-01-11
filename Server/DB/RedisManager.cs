@@ -1,4 +1,5 @@
-﻿using Server.Data;
+﻿using System.Text.Json;
+using Server.Data;
 using Server.Utils;
 using StackExchange.Redis;
 
@@ -50,6 +51,20 @@ public static class RedisManager
     {
         if (_db == null) return false;
         return _db.KeyDelete(key);
+    }
+
+    public static void SavePlayerState(int playerId, PlayerState state)
+    {
+        string json = JsonSerializer.Serialize(state);
+        SetString($"PlayerState:{playerId}", json, TimeSpan.FromMinutes(10)); // Test: 10Min
+    }
+
+    public static PlayerState LoadPlayerState(int playerId)
+    {
+        string json = GetString($"PlayerState:{playerId}");
+        if (string.IsNullOrEmpty(json)) return null;
+        
+        return JsonSerializer.Deserialize<PlayerState>(json);
     }
     
     

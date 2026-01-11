@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using Server.Core;
+using Server.Data;
 using Server.DB;
 using Server.Game;
 using Server.Packet;
@@ -55,22 +56,23 @@ namespace Server
             ExceptionManager.Init();
             
             // Config Load
-            Data.ConfigManager.LoadConfig();
+            ConfigManager.LoadConfig();
             
             // Data Load
-            Data.DataManager.Instance.LoadData();
+            DataManager.Instance.LoadData();
             
             // Redis Init
             RedisManager.Init();
             // Redis Test
-            RedisManager.SetString("test_key", "test_value");
-            string value = RedisManager.GetString("test_key");
-            LogManager.Info($"Redis Test: {value}");
-            // RedisManager.DeleteKey("test_key");
+            var state = new PlayerState { Name = "Test", Level = 1, Hp = 123, X = 5, Y = 0, Z = 110 };
+            RedisManager.SavePlayerState(100, state);
+            
+            var loaded = RedisManager.LoadPlayerState(100);
+            LogManager.Info($"Redis Test: Name: {loaded?.Name}, Level: {loaded?.Level}, Hp: {loaded?.Hp}, X: {loaded?.X}, Y: {loaded?.Y}, Z: {loaded?.Z}");
             
             
-            string host = Data.ConfigManager.Config.IpAddress;
-            int port = Data.ConfigManager.Config.Port;
+            string host = ConfigManager.Config.IpAddress;
+            int port = ConfigManager.Config.Port;
             
             IPAddress ipAddr = IPAddress.Parse(host);
             IPEndPoint endPoint = new IPEndPoint(ipAddr, port);

@@ -39,4 +39,18 @@ public class Player : GameObject
             Console.WriteLine($"[Error] No Stat Data for Level {level}");
         }
     }
+
+    public PlayerState GetState(string token = "")
+    {
+        return new PlayerState()
+        {
+            Name = this.Name,
+            Level = this.Stat.Level,
+            Hp = this.CurrentHp,
+            X = this.X,
+            Y = this.Y,
+            Z = this.Z,
+            TransferToken = token
+        };
+    }
 }
