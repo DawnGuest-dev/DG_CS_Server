@@ -1,0 +1,52 @@
+﻿version: '3.8'
+
+services:
+  # 1. 공유 DB (Redis)
+  redis:
+    image: redis/redis-stack:latest
+    container_name: dg-cs-redis
+    ports:
+      - "6379:6379"  # 데이터 포트
+      - "8001:8001"  # GUI 포트
+    networks:
+      - dg-net
+
+  # 2. 게임 서버 Zone 1
+  zone1:
+    build: .
+    container_name: zone1
+    ports:
+      - "12345:12345"
+      - "12345:12345/udp"
+    environment:
+      - TZ=Asia/Seoul
+    command: ["1"]       # 실행 인자
+    depends_on:
+      - redis            # Redis가 켜진 뒤 실행
+    networks:
+      - dg-net
+    # host.docker.internal을 사용하기 위한 설정
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # 3. 게임 서버 Zone 2
+  zone2:
+    build: .
+    container_name: zone2
+    ports:
+      - "12346:12346"
+      - "12346:12346/udp"
+    environment:
+      - TZ=Asia/Seoul
+    command: ["2"]       # 실행 인자
+    depends_on:
+      - redis
+    networks:
+      - dg-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+# 4. 도커 네트워크 정의 (컨테이너끼리 통신용)
+networks:
+  dg-net:
+    driver: bridge

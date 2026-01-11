@@ -93,9 +93,34 @@ namespace DummyClient
         
         static void RunGameClient()
         {
+            IPAddress ipAddr;
+    
+            // 1. 숫자로 된 IP인지 시도 (예: "127.0.0.1")
+            if (!IPAddress.TryParse(_currentIp, out ipAddr))
+            {
+                // 2. 실패하면 도메인 이름으로 간주하고 IP 찾기 (예: "host.docker.internal" -> 127.0.0.1)
+                try 
+                {
+                    IPHostEntry entry = Dns.GetHostEntry(_currentIp);
+                    // IPv4 주소 우선적으로 가져오기
+                    ipAddr = entry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
+            
+                    if (ipAddr == null)
+                    {
+                        Console.WriteLine($"[Error] Could not resolve hostname: {_currentIp}");
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Error] DNS Error: {ex.Message}");
+                    return;
+                }
+            }
+            
             // TCP 소켓 준비
             Socket tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            IPEndPoint endPoint = new IPEndPoint(IPAddress.Parse(_currentIp), _currentPort);
+            IPEndPoint endPoint = new IPEndPoint(ipAddr, _currentPort);
 
             // UDP 매니저 준비
             ClientListener listener = new();

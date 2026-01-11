@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="compose.yaml" />
+  </Folder>
   <Project Path="Common/Common.csproj" />
   <Project Path="DummyClient/DummyClient.csproj" />
   <Project Path="Server/Server.csproj" />
