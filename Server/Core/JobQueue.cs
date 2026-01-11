@@ -1,4 +1,6 @@
-﻿namespace Server.Core;
+﻿using Server.Utils;
+
+namespace Server.Core;
 
 public interface IJobQueue
 {
@@ -32,7 +34,7 @@ public class JobQueue : IJobQueue
             }
             catch(Exception e)
             {
-                Console.WriteLine($"Job Excution Failed: {e}");
+                LogManager.Exception(e, $"Job Excution Failed: {e}");
             }
         }
     }

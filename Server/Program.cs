@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using Server.Core;
+using Server.DB;
 using Server.Game;
 using Server.Packet;
 using Server.Utils;
@@ -58,6 +59,15 @@ namespace Server
             
             // Data Load
             Data.DataManager.Instance.LoadData();
+            
+            // Redis Init
+            RedisManager.Init();
+            // Redis Test
+            RedisManager.SetString("test_key", "test_value");
+            string value = RedisManager.GetString("test_key");
+            LogManager.Info($"Redis Test: {value}");
+            // RedisManager.DeleteKey("test_key");
+            
             
             string host = Data.ConfigManager.Config.IpAddress;
             int port = Data.ConfigManager.Config.Port;

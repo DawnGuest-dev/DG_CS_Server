@@ -7,4 +7,5 @@ public class ServerConfig
     public int MaxConnection { get; set; }
     public int FrameRate { get; set; }
     public string DataPath { get; set; }
+    public string RedisConnectionString { get; set; }
 }

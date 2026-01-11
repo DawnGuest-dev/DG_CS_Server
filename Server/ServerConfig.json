@@ -3,5 +3,6 @@
   "Port": 12345,
   "MaxConnection": 100,
   "FrameRate": 60,
-  "DataPath": "Data/Config"
+  "DataPath": "Data/Config",
+  "RedisConnectionString": "localhost:6379"
 }
