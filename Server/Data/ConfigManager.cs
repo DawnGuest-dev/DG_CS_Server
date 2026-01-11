@@ -7,24 +7,15 @@ public class ConfigManager
 {
     public static ServerConfig Config { get; private set; }
 
-    public static void LoadConfig()
+    public static void LoadConfig(string zoneIndex = "1")
     {
-        string path = "ServerConfig.json"; // 실행 파일 옆
-
+        string fileName = $"ServerConfig_{zoneIndex}.json";
+        string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
+        
         if (File.Exists(path) == false)
         {
-            // 파일 없으면 기본값 생성 후 저장 (편의성)
-            Config = new ServerConfig()
-            {
-                IpAddress = "127.0.0.1",
-                Port = 12345,
-                MaxConnection = 100,
-                FrameRate = 60,
-                DataPath = "Data/Config"
-            };
-            string jsonString = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(path, jsonString);
-            LogManager.Info("[Config] Created default ServerConfig.json");
+            LogManager.Error($"[Error] Config File Not Found: {path}");
+            // 기본값 로드하거나 종료
             return;
         }
 

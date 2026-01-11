@@ -54,22 +54,21 @@ namespace Server
             // Logger Init
             LogManager.Init();
             ExceptionManager.Init();
+
+            string zoneIdx = "1";
+            if (args.Length > 0)
+            {
+                zoneIdx = args[0];
+            }
             
             // Config Load
-            ConfigManager.LoadConfig();
+            ConfigManager.LoadConfig(zoneIdx);
             
             // Data Load
             DataManager.Instance.LoadData();
             
             // Redis Init
             RedisManager.Init();
-            // Redis Test
-            var state = new PlayerState { Name = "Test", Level = 1, Hp = 123, X = 5, Y = 0, Z = 110 };
-            RedisManager.SavePlayerState(100, state);
-            
-            var loaded = RedisManager.LoadPlayerState(100);
-            LogManager.Info($"Redis Test: Name: {loaded?.Name}, Level: {loaded?.Level}, Hp: {loaded?.Hp}, X: {loaded?.X}, Y: {loaded?.Y}, Z: {loaded?.Z}");
-            
             
             string host = ConfigManager.Config.IpAddress;
             int port = ConfigManager.Config.Port;
@@ -83,7 +82,7 @@ namespace Server
             // RUDP 시작
             _rudpHandler.Init(port);
             
-            LogManager.Info($"Listening on {host}:{port}...");
+            LogManager.Info($"Listening on {host}:{port}, Zone: {zoneIdx}");
             
             int frameRate = Server.Data.ConfigManager.Config.FrameRate;
             int tickMs = 1000 / frameRate;
