@@ -292,7 +292,7 @@ public class GameRoom : IJobQueue
         state.X = nextX; // 다음 서버에서의 시작 위치 설정
         state.Z = nextZ;
     
-        RedisManager.SavePlayerState(player.Id, state);
+        RedisManager.SavePlayerState(player.Session.AuthToken, state);
 
         // 4. 클라에게 명령 전송
         S_TransferReq transferPacket = new S_TransferReq()
