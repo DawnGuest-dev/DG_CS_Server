@@ -70,11 +70,9 @@ public class DummyBot : INetEventListener
                 int recv = _tcpSocket.Receive(buffer);
                 if (recv == 0) break;
 
-                // 패킷 파싱 (간략화: S_LoginRes만 온다고 가정)
-                // 실제로는 PacketManager 로직 필요하지만 테스트용이라 하드코딩
+
                 if (recv > 4)
                 {
-                    // 헤더(4byte) 건너뛰고 바디 파싱
                     byte[] body = new byte[recv - 4];
                     Array.Copy(buffer, 4, body, 0, body.Length);
                     
@@ -109,12 +107,12 @@ public class DummyBot : INetEventListener
         if (_isConnected)
         {
             // 0.1초마다 랜덤 이동
-            _x += (float)(_rand.NextDouble() - 0.5) * 0.5f;
-            _z += (float)(_rand.NextDouble() - 0.5) * 0.5f;
+            _x += (float)(_rand.NextDouble() - 0.5) * 30f;
+            _z += (float)(_rand.NextDouble() - 0.5) * 30f;
 
             // 맵 밖으로 안 나가게
-            if (_x < -40) _x = -40; if (_x > 40) _x = 40;
-            if (_z < -40) _z = -40; if (_z > 40) _z = 40;
+            if (_x < -500) _x = -500; if (_x > 500) _x = 500;
+            if (_z < -500) _z = -500; if (_z > 500) _z = 500;
 
             C_Move move = new C_Move() { X = _x, Y = 0, Z = _z };
             SendUdp(move);
