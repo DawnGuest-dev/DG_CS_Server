@@ -4,25 +4,36 @@ namespace Server.Core;
 
 public class RecvBuffer
 {
-    private ArraySegment<byte> _buffer;
+    private byte[] _buffer;
     private int _readPos;
     private int _writePos;
-
-    private byte[] _rentedBuffer;
-    private bool _disposedValue;
+    private int _capacity;
+    private int _bufferSize;
 
     public RecvBuffer(int bufferSize)
     {
-        _rentedBuffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+        _bufferSize = bufferSize;
         
-        _buffer = new ArraySegment<byte>(new byte[bufferSize], 0 , bufferSize);
+        // 시스템 풀에서 메모리를 빌려옴
+        _buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+        _capacity = _buffer.Length;
     }
     
     public int DataSize => _writePos - _readPos;
-    public int FreeSize => _buffer.Count - _writePos;
     
-    public ArraySegment<byte> ReadSegment => new(_buffer.Array, _buffer.Offset + _readPos, DataSize);
-    public ArraySegment<byte> WriteSegment => new(_buffer.Array, _buffer.Offset + _writePos, FreeSize);
+    public int FreeSize => _capacity - _writePos;
+    
+    // 읽을 범위
+    public ArraySegment<byte> ReadSegment
+    {
+        get { return new ArraySegment<byte>(_buffer, _readPos, DataSize); }
+    }
+
+    // 쓸 범위
+    public ArraySegment<byte> WriteSegment
+    {
+        get { return new ArraySegment<byte>(_buffer, _writePos, FreeSize); }
+    }
 
     public void Clean()
     {
@@ -34,7 +45,7 @@ public class RecvBuffer
         else
         {
             // 남은 데이터가 있으면 시작 지점으로 복사
-            Array.Copy(_buffer.Array, _buffer.Offset + _readPos, _buffer.Array, _buffer.Offset, dataSize);
+            Array.Copy(_buffer, _readPos, _buffer, 0, dataSize);
             _readPos = 0;
             _writePos = dataSize;
         }
@@ -54,24 +65,12 @@ public class RecvBuffer
         return true;
     }
 
-    protected virtual void Dispose(bool disposing)
-    {
-        if (!_disposedValue)
-        {
-            if (disposing)
-            {
-                if (_rentedBuffer != null)
-                {
-                    ArrayPool<byte>.Shared.Return(_rentedBuffer);
-                }
-            }
-            _disposedValue = true;
-        }
-    }
-
     public void Dispose()
     {
-        Dispose(true);
-        GC.SuppressFinalize(this);
+        if (_buffer != null)
+        {
+            ArrayPool<byte>.Shared.Return(_buffer);
+            _buffer = null;
+        }
     }
 }

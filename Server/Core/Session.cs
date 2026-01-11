@@ -117,10 +117,11 @@ public abstract class Session
 
     public void Disconnect()
     {
-        if (Interlocked.Exchange(ref _disconnected, 1) == 1) return; // atomic이랑 같음
+        if (Interlocked.Exchange(ref _disconnected, 1) == 1) return;
         
         OnDisconnected(_socket.RemoteEndPoint);
 
+        // RecvBuffer 메모리 반납
         if (_recvBuffer != null)
         {
             _recvBuffer.Dispose();
@@ -135,6 +136,8 @@ public abstract class Session
 
     private void RegisterRecv()
     {
+        if (_disconnected == 1) return;
+        
         _recvBuffer.Clean();
         
         ArraySegment<byte> segment = _recvBuffer.WriteSegment;
@@ -148,7 +151,6 @@ public abstract class Session
         catch (Exception e)
         {
             Disconnect();
-            // Console.WriteLine($"Disconnect: {e.Message}");
         }
     }
 
@@ -195,21 +197,17 @@ public abstract class Session
     public int OnRecv(ArraySegment<byte> buffer)
     {
         int processLen = 0;
-        int packetCount = 0;
 
         while (true)
         {
             if (buffer.Count < 4)
                 break;
-
-            // 패킷 크기 확인
+            
             ushort dataSize = BitConverter.ToUInt16(buffer.Array, buffer.Offset);
-
-            // 아직 패킷이 다 도착하지 않음
+            
             if (buffer.Count < dataSize)
                 break;
             
-            // 패킷 데이터 전체를 ArraySegment로 잘라냄 (복사 아님, 참조만 생성)
             ArraySegment<byte> packetData = new ArraySegment<byte>(buffer.Array, buffer.Offset, dataSize);
             
             PacketManager.Instance.OnRecvPacket(this, packetData);
@@ -217,11 +215,9 @@ public abstract class Session
             processLen += dataSize;
             
             buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset + dataSize, buffer.Count - dataSize);
-                
-            packetCount++;
         }
 
-        return processLen;
+        return processLen; // 총 처리한 바이트 수 반환
     }
     
     public abstract void OnConnected(EndPoint endPoint);
