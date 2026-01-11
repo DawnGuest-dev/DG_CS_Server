@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using LiteNetLib;
 using Server.Game;
 using Server.Packet;
+using Server.Utils;
 
 namespace Server.Core;
 
@@ -185,7 +186,7 @@ public abstract class Session
             }
             catch (Exception e)
             {
-                Console.WriteLine($"OnRecvCompleted Error: {e}");
+                LogManager.Exception(e, $"OnRecvCompleted Error: {e}");
             }
         }
         else

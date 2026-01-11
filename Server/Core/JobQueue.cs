@@ -51,7 +51,7 @@ public class JobQueue
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Job Execution Error: {e}");
+                LogManager.Exception(e, $"Job Execution Error: {e}");
             }
         }
 

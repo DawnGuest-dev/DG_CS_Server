@@ -5,8 +5,8 @@ namespace Server.Core;
 public class RecvBuffer
 {
     private byte[] _buffer;
-    private int _readPos;
-    private int _writePos;
+    private int _readPos; // 시작점
+    private int _writePos; // 끝 점
     private int _capacity;
     private int _bufferSize;
 
@@ -19,8 +19,10 @@ public class RecvBuffer
         _capacity = _buffer.Length;
     }
     
+    // 남은 데이터
     public int DataSize => _writePos - _readPos;
     
+    // 여유 공간
     public int FreeSize => _capacity - _writePos;
     
     // 읽을 범위
