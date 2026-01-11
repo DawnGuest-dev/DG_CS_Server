@@ -1,4 +1,5 @@
-﻿using Common.Packet;
+﻿using System.Buffers.Binary;
+using Common.Packet;
 using MemoryPack;
 using Server.Core;
 
@@ -13,40 +14,50 @@ public class PacketManager
         Register();
     }
     
-    private Dictionary<PacketId, Action<Session, byte[]>> _onRecv = new();
-    private Dictionary<PacketId, Action<Session, byte[]>> _handler = new();
+    private Dictionary<ushort, Action<Session, ReadOnlySpan<byte>>> _onRecv = new();
+    private Dictionary<ushort, Action<Session, BasePacket>> _handler = new();
 
     private void Register()
     {
-        _onRecv.Add(PacketId.C_LoginReq, MakePacketAction<C_LoginReq>(PacketHandler.C_LoginReq));
-        _onRecv.Add(PacketId.C_Move, MakePacketAction<C_Move>(PacketHandler.C_MoveReq));
-        _onRecv.Add(PacketId.C_Chat, MakePacketAction<C_Chat>(PacketHandler.C_ChatReq));
+        _onRecv.Add((ushort)PacketId.C_LoginReq, MakePacket<C_LoginReq>);
+        _handler.Add((ushort)PacketId.C_LoginReq, PacketHandler.C_LoginReq);
+
+        _onRecv.Add((ushort)PacketId.C_Move, MakePacket<C_Move>);
+        _handler.Add((ushort)PacketId.C_Move, PacketHandler.C_MoveReq); // 이름 주의 (MoveReq)
+
+        _onRecv.Add((ushort)PacketId.C_Chat, MakePacket<C_Chat>);
+        _handler.Add((ushort)PacketId.C_Chat, PacketHandler.C_ChatReq);
     }
     
-    private Action<Session, byte[]> MakePacketAction<T>(Action<Session, T> handler) where T : BasePacket
+    private void MakePacket<T>(Session session, ReadOnlySpan<byte> bodySpan) where T : BasePacket
     {
-        return (session, buffer) =>
-        {
-            T packet = MemoryPackSerializer.Deserialize<T>(new ReadOnlySpan<byte>(buffer).Slice(4));
+        // [최적화 3] MemoryPack은 Span을 직접 받아 역직렬화 가능 (메모리 할당 없음)
+        var packet = MemoryPackSerializer.Deserialize<T>(bodySpan);
             
-            handler.Invoke(session, packet);
-        };
+        if (_handler.TryGetValue((ushort)packet.Id, out var action))
+        {
+            action.Invoke(session, packet);
+        }
     }
 
-    public void OnRecvPacket(Session session, byte[] buffer)
+    public void OnRecvPacket(Session session, ArraySegment<byte> buffer)
     {
-        if (buffer.Length < 4) return;
-        
-        ushort packetIdRaw = BitConverter.ToUInt16(buffer, 2);
-        PacketId packetId = (PacketId)packetIdRaw;
+        // ArraySegment -> ReadOnlySpan 변환 (비용 0, 참조만 가져옴)
+        ReadOnlySpan<byte> span = buffer.AsSpan();
 
-        if (_onRecv.TryGetValue(packetId, out var action))
+        // 헤더 크기 체크
+        if (span.Length < 4) return;
+
+        // BitConverter 대신 BinaryPrimitives 사용 (CPU 친화적)
+        ushort id = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(2));
+
+        if (_onRecv.TryGetValue(id, out var action))
         {
-            action.Invoke(session, buffer);
-        }
-        else
-        {
-            // Console.WriteLine($"Unknown Packet: {packetId}");
+            // Array.Copy 제거
+            // 헤더(4바이트)를 제외한 Body 부분만 Slice
+            var bodySpan = span.Slice(4);
+            
+            action.Invoke(session, bodySpan);
         }
     }
     

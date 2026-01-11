@@ -28,15 +28,6 @@ namespace Server
         
             GameRoom.Instance.Push(job);
         }
-
-        public override int OnRecv(ArraySegment<byte> buffer)
-        {
-            byte[] packetData = buffer.ToArray();
-            
-            PacketManager.Instance.OnRecvPacket(this, packetData);
-            
-            return buffer.Count; 
-        }
     }
     
     internal class Program

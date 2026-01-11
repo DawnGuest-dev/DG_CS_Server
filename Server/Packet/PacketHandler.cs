@@ -10,8 +10,9 @@ namespace Server.Packet;
 
 public class PacketHandler
 {
-    public static void C_LoginReq(Session session, C_LoginReq packet)
+    public static void C_LoginReq(Session session, BasePacket p)
     {
+        C_LoginReq packet = p as C_LoginReq;
         LogManager.Info($"[Login] Token: {packet.AuthToken}");
         session.AuthToken = packet.AuthToken;
 
@@ -48,7 +49,7 @@ public class PacketHandler
         GameRoom.Instance.Push(job);
     }
     
-    public static void C_MoveReq(Session session, C_Move packet)
+    public static void C_MoveReq(Session session, BasePacket packet)
     {
         // Console.WriteLine($"[Move] X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
         
@@ -65,7 +66,7 @@ public class PacketHandler
         GameRoom.Instance.Push(job);
     }
 
-    public static void C_ChatReq(Session session, C_Chat packet)
+    public static void C_ChatReq(Session session, BasePacket packet)
     {
         // Console.WriteLine($"[Chat] message: {packet.Msg}");
         

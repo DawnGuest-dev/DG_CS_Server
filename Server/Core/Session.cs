@@ -2,6 +2,7 @@
 using System.Net.Sockets;
 using LiteNetLib;
 using Server.Game;
+using Server.Packet;
 
 namespace Server.Core;
 
@@ -14,7 +15,7 @@ public abstract class Session
     private int _disconnected = 0;
     
     // Recv
-    private RecvBuffer _recvBuffer = new(1024);
+    private RecvBuffer _recvBuffer = new(65535);
     private SocketAsyncEventArgs _recvArgs = new();
     
     // Send
@@ -151,13 +152,12 @@ public abstract class Session
         }
     }
 
-    private void OnRecvCompleted(object? sender, SocketAsyncEventArgs args)
+    void OnRecvCompleted(object sender, SocketAsyncEventArgs args)
     {
         if (args.BytesTransferred > 0 && args.SocketError == SocketError.Success)
         {
             try
             {
-                // Write 커서 이동
                 if (_recvBuffer.OnWrite(args.BytesTransferred) == false)
                 {
                     Disconnect();
@@ -165,18 +165,25 @@ public abstract class Session
                 }
                 
                 int processLen = OnRecv(_recvBuffer.ReadSegment);
-                if (processLen < 0 || _recvBuffer.OnRead(processLen) == false)
+                    
+                if (processLen < 0)
                 {
                     Disconnect();
                     return;
                 }
                 
+                if (_recvBuffer.OnRead(processLen) == false)
+                {
+                    Disconnect();
+                    return;
+                }
+
+                // 4. 다음 수신 대기
                 RegisterRecv();
             }
             catch (Exception e)
             {
-                Disconnect();
-                // Console.WriteLine($"Disconnect: {e.Message}");
+                Console.WriteLine($"OnRecvCompleted Error: {e}");
             }
         }
         else
@@ -185,7 +192,38 @@ public abstract class Session
         }
     }
     
-    public abstract int OnRecv(ArraySegment<byte> buffer);
+    public int OnRecv(ArraySegment<byte> buffer)
+    {
+        int processLen = 0;
+        int packetCount = 0;
+
+        while (true)
+        {
+            if (buffer.Count < 4)
+                break;
+
+            // 패킷 크기 확인
+            ushort dataSize = BitConverter.ToUInt16(buffer.Array, buffer.Offset);
+
+            // 아직 패킷이 다 도착하지 않음
+            if (buffer.Count < dataSize)
+                break;
+            
+            // 패킷 데이터 전체를 ArraySegment로 잘라냄 (복사 아님, 참조만 생성)
+            ArraySegment<byte> packetData = new ArraySegment<byte>(buffer.Array, buffer.Offset, dataSize);
+            
+            PacketManager.Instance.OnRecvPacket(this, packetData);
+            
+            processLen += dataSize;
+            
+            buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset + dataSize, buffer.Count - dataSize);
+                
+            packetCount++;
+        }
+
+        return processLen;
+    }
+    
     public abstract void OnConnected(EndPoint endPoint);
     public abstract void OnDisconnected(EndPoint endPoint);
     
