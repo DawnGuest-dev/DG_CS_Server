@@ -9,6 +9,7 @@ public static class RedisManager
 {
     private static ConnectionMultiplexer _conn;
     private static IDatabase _db;
+    private static ISubscriber _sub;
 
     public static void Init()
     {
@@ -19,6 +20,7 @@ public static class RedisManager
             ConfigurationOptions options = ConfigurationOptions.Parse(connStr);
             _conn = ConnectionMultiplexer.Connect(options);
             _db = _conn.GetDatabase();
+            _sub = _conn.GetSubscriber();
             
             LogManager.Info($"Redis Initialized to {connStr}");
         }
@@ -51,6 +53,25 @@ public static class RedisManager
     {
         if (_db == null) return false;
         return _db.KeyDelete(key);
+    }
+
+    public static void Publish(string channel, string message)
+    {
+        if (_sub == null) return;
+        
+        _sub.Publish(channel, message);
+    }
+
+    public static void Subscribe(string channel, Action<string> callback)
+    {
+        if (_sub == null) return;
+
+        _sub.Subscribe(channel, (channel, redisValue) =>
+        {
+            callback(redisValue);
+        });
+        
+        LogManager.Info($"Subscribe to {channel}");
     }
 
     public static void SavePlayerState(int playerId, PlayerState state)

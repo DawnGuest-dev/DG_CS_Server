@@ -58,6 +58,8 @@ public class GameRoom : IJobQueue
         }
             
         LogManager.Info($"GameRoom Map Initialized. Grid: {_cellCountY}x{_cellCountX}");
+        
+        RedisManager.Subscribe("GlobalChat", OnRecvGlobalChat);
     }
 
     private Cell GetCell(float x, float z)
@@ -134,6 +136,15 @@ public class GameRoom : IJobQueue
                     player.Session.SendUDP(data, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
                 }
             }
+        }
+    }
+
+    public void BroadcastAll<T>(T packet) where T : BasePacket
+    {
+        byte[] data = PacketManager.Instance.Serialize(packet);
+        foreach (Player p in _players.Values)
+        {
+            p.Session.SendUDP(data, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
         }
     }
     
@@ -241,16 +252,29 @@ public class GameRoom : IJobQueue
             return;
         }
         player.LastChatTime = now;
-        
-        S_Chat chatRes = new()
+
+        if (packet.Msg.StartsWith("/g "))
         {
-            PlayerId = player.Id,
-            Msg = packet.Msg
-        };
+            string content = packet.Msg.Substring(3); // "/g " 제거
+            string pubMsg = $"{player.Name}:{content}";
+            
+            // Redis로 발행 (내 서버 포함, 모든 서버가 듣게 됨)
+            RedisManager.Publish("GlobalChat", pubMsg);
+            
+            LogManager.Info($"[Global Chat] {pubMsg}");
+        }
+        else
+        {
+            S_Chat chatRes = new()
+            {
+                PlayerId = player.Id,
+                Msg = packet.Msg
+            };
         
-        Console.WriteLine($"[Chat] {player.Name}({player.Id}): {packet.Msg}");
+            Console.WriteLine($"[Chat] {player.Name}({player.Id}): {packet.Msg}");
         
-        Broadcast(player.X, player.Z, chatRes);
+            Broadcast(player.X, player.Z, chatRes);   
+        }
     }
     
     private void InitiateHandover(Player player, ServerConfig.ZoneInfo targetZone, float nextX, float nextZ)
@@ -284,5 +308,25 @@ public class GameRoom : IJobQueue
         // 5. 서버에서 유저 제거 (즉시 퇴장 처리)
         // LeaveGame을 호출하면 브로드캐스트도 됨
         Leave(player.Id);
+    }
+    
+    private void OnRecvGlobalChat(string msg)
+    {
+        Push(() =>
+        {
+            string[] parts = msg.Split(':', 2);
+            if (parts.Length < 2) return;
+
+            string senderName = parts[0];
+            string message = parts[1];
+
+            S_Chat packet = new S_Chat()
+            {
+                PlayerId = 0,
+                Msg = $"[Global] {senderName}: {message}"
+            };
+            
+            BroadcastAll(packet);
+        });
     }
 }
