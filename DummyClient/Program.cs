@@ -37,107 +37,163 @@ namespace DummyClient
     class Program
     {
         public static int MySessionId = 0;
+        // [접속 정보] (서버 이동 시 갱신됨)
+        static string _currentIp = "127.0.0.1";
+        static int _currentPort = 12345;
+        static string _transferToken = ""; // 초기엔 없음
+
+        // [좌표 시뮬레이션]
+        // Zone 1(-500~500) -> Zone 2(-500~500) 연결됨
+        // 테스트를 위해 전역으로 관리
+        static float _currentX = 0;
+        
         static bool _isUdpConnectSent = false;
         
         static void Main(string[] args)
         {
-            // TCP
-            IPAddress ipAddr = IPAddress.Parse("127.0.0.1");
-            IPEndPoint endPoint = new IPEndPoint(ipAddr, 12345);
-            Socket tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            
-            try
+            // [재접속 루프]
+            while (true)
             {
-                tcpSocket.Connect(endPoint);
-                Console.WriteLine("[TCP] Connected to Server: " + tcpSocket.RemoteEndPoint);
+                Console.WriteLine($"\n>>> Starting Client Session to {_currentIp}:{_currentPort}...");
 
-                C_LoginReq loginPacket = new()
+                // 1. 게임 세션 실행 (여기서 블로킹되다가, 이동 명령 오면 리턴됨)
+                RunGameClient();
+
+                // 2. 루프 탈출 후 상태 확인
+                if (PacketHandler.IsTransfer)
                 {
-                    AuthToken = "test"
-                };
+                    Console.WriteLine(">>> Moving to new server zone...");
 
-                byte[] sendData = PacketManager.Instance.Serialize(loginPacket);
-                tcpSocket.Send(sendData);
-                Console.WriteLine("[TCP] Sent Login Packet");
+                    // 목적지 정보 갱신
+                    _currentIp = PacketHandler.TargetIp;
+                    _currentPort = PacketHandler.TargetPort;
+                    _transferToken = PacketHandler.TransferToken;
+
+                    // [좌표 보정]
+                    // Zone 1에서 오른쪽(>500)으로 나갔으니, Zone 2의 왼쪽(-480)에서 시작한다고 가정
+                    // (실제로는 서버가 저장한 Redis 데이터를 믿어야 하지만, 더미 클라니까 강제 설정)
+                    if (_currentX > 0) _currentX = -480;
+                    else _currentX = 480;
+
+                    // 플래그 초기화
+                    PacketHandler.IsTransfer = false;
+                    MySessionId = 0; // 세션 ID 초기화
+
+                    // 잠시 대기
+                    Thread.Sleep(1000);
+                }
+                else
+                {
+                    // 이동이 아닌데 종료된 경우 (에러 등)
+                    Console.WriteLine(">>> Client Terminated.");
+                    break;
+                }
             }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.ToString());
-                return;
-            }
-            
-            // UDP
+        }
+        
+        static void RunGameClient()
+        {
+            // TCP 소켓 준비
+            Socket tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            IPEndPoint endPoint = new IPEndPoint(IPAddress.Parse(_currentIp), _currentPort);
+
+            // UDP 매니저 준비
             ClientListener listener = new();
             NetManager netManager = new(listener);
             netManager.ChannelsCount = 3;
             netManager.Start();
-            
-            Console.WriteLine("[UDP] Started");
-            
-            float currentX = 0;
-            
+            bool isUdpConnectSent = false;
+
+            try
+            {
+                // 1. TCP Connect
+                tcpSocket.Connect(endPoint);
+                Console.WriteLine($"[TCP] Connected: {tcpSocket.RemoteEndPoint}");
+
+                // 2. Login Request (토큰 포함!)
+                C_LoginReq loginPacket = new()
+                {
+                    AuthToken = "dummy_auth",
+                    TransferToken = _transferToken // 이사 갈 땐 토큰이 들어있음
+                };
+                tcpSocket.Send(PacketManager.Instance.Serialize(loginPacket));
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Connection Failed: {e.Message}");
+                return;
+            }
+
+            // [게임 루프]
             while (true)
             {
                 netManager.PollEvents();
-                
-                // [TCP 처리]
+
+                // 1. 이동 명령 감지 (가장 중요!)
+                if (PacketHandler.IsTransfer)
+                {
+                    // 소켓 닫고 함수 종료 -> Main의 while문으로 돌아감
+                    tcpSocket.Close();
+                    netManager.Stop();
+                    return; 
+                }
+
+                // 2. TCP 수신 처리
                 if (tcpSocket.Poll(0, SelectMode.SelectRead))
                 {
                     byte[] recvBuff = new byte[4096];
-                    int recvBytes = tcpSocket.Receive(recvBuff);
-                    if (recvBytes > 0)
+                    try 
                     {
-                        // 테스트 1개만 온다고 가정
-                        
-                        byte[] packetData = new byte[recvBytes];
-                        Array.Copy(recvBuff, packetData, recvBytes);
-                    
-                        PacketManager.Instance.OnRecvPacket(packetData);
+                        int recvBytes = tcpSocket.Receive(recvBuff);
+                        if (recvBytes > 0)
+                        {
+                            byte[] packetData = new byte[recvBytes];
+                            Array.Copy(recvBuff, packetData, recvBytes);
+                            PacketManager.Instance.OnRecvPacket(packetData);
+                        }
+                        else
+                        {
+                            // 0바이트 수신 = 서버가 끊음
+                            tcpSocket.Close();
+                            netManager.Stop();
+                            return;
+                        }
                     }
+                    catch { return; }
                 }
-                
-                // udp 연결 시도
-                if (MySessionId > 0 && _isUdpConnectSent == false)
-                {
-                    _isUdpConnectSent = true; // 중복 요청 방지
 
+                // 3. UDP 연결 (LoginRes 받은 후 MySessionId가 세팅되면)
+                if (MySessionId > 0 && !isUdpConnectSent)
+                {
+                    isUdpConnectSent = true;
                     Console.WriteLine($"[UDP] Connecting with SessionId: {MySessionId}...");
-
                     NetDataWriter authWriter = new NetDataWriter();
-                    authWriter.Put(MySessionId); // 내 ID를 담음
-
-                    netManager.Connect("localhost", 12345, authWriter);
+                    authWriter.Put(MySessionId);
+                    netManager.Connect(_currentIp, _currentPort, authWriter); // 로컬호스트 대신 IP 변수 사용
                 }
-                
-                // 이동 패킷 테스트
-                if (netManager.FirstPeer != null &&
-                    netManager.FirstPeer.ConnectionState == ConnectionState.Connected)
+
+                // 4. 이동 패킷 전송 (UDP Connected 상태일 때)
+                if (netManager.FirstPeer != null && netManager.FirstPeer.ConnectionState == ConnectionState.Connected)
                 {
-                    currentX += 10;
-                    
+                    // 오른쪽으로 계속 이동
+                    _currentX += 5.0f; // 속도 조금 줄임
+
                     C_Move movePacket = new()
                     {
-                        X = currentX,
+                        X = _currentX,
                         Y = 0,
-                        Z = 100
+                        Z = 0
                     };
-                
+
                     byte[] pd = PacketManager.Instance.Serialize(movePacket);
-                    
-                    netManager.FirstPeer.Send(pd, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
-                    
-                    if (Environment.TickCount64 % 2000 < 20) 
-                    {
-                        C_Chat chatPacket = new C_Chat() { Msg = "Hello RUDP!" };
-                        byte[] data = PacketManager.Instance.Serialize(chatPacket);
-                        // 채팅은 RUDP (Channel 1)
-                        netManager.FirstPeer.Send(data, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
-                        Console.WriteLine("Sent Chat Packet");
-                        Thread.Sleep(20); // 중복 전송 방지용 살짝 대기
-                    }
+                    netManager.FirstPeer.Send(pd, NetConfig.Ch_RUDP1, DeliveryMethod.Sequenced);
+
+                    // 로그 출력 (너무 빠르면 보기 힘드니까 가끔)
+                    if(Environment.TickCount64 % 1000 < 20)
+                        Console.WriteLine($"[Move] X: {_currentX:F1}");
                 }
-                
-                Thread.Sleep(15);
+
+                Thread.Sleep(33); // 약 30fps
             }
         }
     }

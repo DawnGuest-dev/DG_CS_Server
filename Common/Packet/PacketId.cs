@@ -6,6 +6,7 @@ public enum PacketId : ushort
     
     C_LoginReq = 101,
     S_LoginRes = 102,
+    S_TransferReq = 103,
     
     // rudp 예시 1
     C_Move = 201,

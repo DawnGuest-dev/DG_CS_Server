@@ -19,6 +19,7 @@ public class PacketManager
         _onRecv.Add(PacketId.S_LoginRes, MakePacketAction<S_LoginRes>(PacketHandler.S_LoginRes));
         _onRecv.Add(PacketId.S_Move, MakePacketAction<S_Move>(PacketHandler.S_Move));
         _onRecv.Add(PacketId.S_Chat, MakePacketAction<S_Chat>(PacketHandler.S_Chat));
+        _onRecv.Add(PacketId.S_TransferReq, MakePacketAction<S_TransferReq>(PacketHandler.S_TransferReq));
     }
     
     private Action<byte[]> MakePacketAction<T>(Action<T> handler) where T : BasePacket

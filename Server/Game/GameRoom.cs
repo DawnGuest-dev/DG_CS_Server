@@ -2,6 +2,8 @@
 using Common.Packet;
 using LiteNetLib;
 using Server.Core;
+using Server.Data;
+using Server.DB;
 using Server.Game.Room;
 using Server.Packet;
 using Server.Utils;
@@ -16,6 +18,12 @@ public class GameRoom : IJobQueue
     private JobQueue _jobQueue = new();
     
     private Dictionary<int, Player> _players = new();
+
+    private const float MapSizeX = 500.0f;
+    
+    private const float HandoverThreshold = 10.0f;
+    
+    private const float SpawnSafetyMargin = 20.0f;
     
     // Cell 설정 (Test)
     public int MapMinX { get; } = -500;
@@ -170,6 +178,32 @@ public class GameRoom : IJobQueue
     {
         if (player == null) return;
         
+        // 1. East (오른쪽) 이동 판정
+        // 500(경계) + 10(버퍼) = 510을 넘어야 이동!
+        if (packet.X > MapSizeX + HandoverThreshold)
+        {
+            if (ConfigManager.Config.NeighborZones.TryGetValue("East", out ServerConfig.ZoneInfo neighbor))
+            {
+                Console.WriteLine($"[Move] {player.Name}({player.Id}): X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}, MapSizeX: {MapSizeX}, HandoverThreshold: {HandoverThreshold}, SpawnSafetyMargin: {SpawnSafetyMargin}");
+                // 다음 서버의 서쪽 끝(-500) + 안전 거리(20) = -480 위치로 보냄
+                float nextX = -MapSizeX + SpawnSafetyMargin;
+                InitiateHandover(player, neighbor, nextX, player.Z);
+                return;
+            }
+        }
+        // 2. West (왼쪽) 이동 판정
+        // -500(경계) - 10(버퍼) = -510을 넘어야 이동!
+        else if (packet.X < -MapSizeX - HandoverThreshold)
+        {
+            if (ConfigManager.Config.NeighborZones.TryGetValue("West", out ServerConfig.ZoneInfo neighbor))
+            {
+                // 다음 서버의 동쪽 끝(500) - 안전 거리(20) = 480 위치로 보냄
+                float nextX = MapSizeX - SpawnSafetyMargin;
+                InitiateHandover(player, neighbor, nextX, player.Z);
+                return;
+            }
+        }
+        
         Cell oldCell = GetCell(player.X, player.Z);
 
         // 1. 서버 메모리 상의 좌표 업데이트
@@ -217,5 +251,38 @@ public class GameRoom : IJobQueue
         Console.WriteLine($"[Chat] {player.Name}({player.Id}): {packet.Msg}");
         
         Broadcast(player.X, player.Z, chatRes);
+    }
+    
+    private void InitiateHandover(Player player, ServerConfig.ZoneInfo targetZone, float nextX, float nextZ)
+    {
+        // 1. 중복 처리 방지 (간단 체크)
+        if (player.Session == null) return;
+
+        Console.WriteLine($"[Handover] {player.Name} leaving to Zone {targetZone.ZoneId} ({targetZone.Port})");
+
+        // 2. 이관 토큰 생성
+        string token = Guid.NewGuid().ToString();
+
+        // 3. 상태 저장 (Redis)
+        PlayerState state = player.GetState(token);
+        state.X = nextX; // 다음 서버에서의 시작 위치 설정
+        state.Z = nextZ;
+    
+        RedisManager.SavePlayerState(player.Id, state);
+
+        // 4. 클라에게 명령 전송
+        S_TransferReq transferPacket = new S_TransferReq()
+        {
+            TargetIp = targetZone.IpAddress, // Config에서 읽은 값 (127.0.0.1)
+            TargetPort = targetZone.Port,    // Config에서 읽은 값 (12346 등)
+            TransferToken = token
+        };
+
+        byte[] data = PacketManager.Instance.Serialize(transferPacket);
+        player.Session.Send(data);
+
+        // 5. 서버에서 유저 제거 (즉시 퇴장 처리)
+        // LeaveGame을 호출하면 브로드캐스트도 됨
+        Leave(player.Id);
     }
 }

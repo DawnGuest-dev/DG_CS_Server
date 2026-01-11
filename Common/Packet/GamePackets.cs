@@ -9,6 +9,7 @@ public partial class C_LoginReq : BasePacket
     public override PacketId Id => PacketId.C_LoginReq;
     
     public string AuthToken; // 보안 토큰 (테스트용)
+    public string TransferToken;
 }
 
 // [TCP] 로그인 응답 (Server -> Client)
@@ -64,4 +65,14 @@ public partial class S_Chat : BasePacket
 
     public string Msg; // Chat 메시지
     public int PlayerId;
+}
+
+[MemoryPackable]
+public partial class S_TransferReq : BasePacket
+{
+    public override PacketId Id => PacketId.S_TransferReq;
+
+    public string TargetIp;
+    public int TargetPort;
+    public string TransferToken;
 }
