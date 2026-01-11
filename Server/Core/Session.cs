@@ -85,7 +85,7 @@ public abstract class Session
         catch (Exception e)
         {
             Disconnect();
-            Console.WriteLine($"Disconnect: {e.Message}");
+            // Console.WriteLine($"Disconnect: {e.Message}");
         }
     }
 
@@ -147,7 +147,7 @@ public abstract class Session
         catch (Exception e)
         {
             Disconnect();
-            Console.WriteLine($"Disconnect: {e.Message}");
+            // Console.WriteLine($"Disconnect: {e.Message}");
         }
     }
 
@@ -176,7 +176,7 @@ public abstract class Session
             catch (Exception e)
             {
                 Disconnect();
-                Console.WriteLine($"Disconnect: {e.Message}");
+                // Console.WriteLine($"Disconnect: {e.Message}");
             }
         }
         else

@@ -5,4 +5,5 @@
   <Project Path="Common/Common.csproj" />
   <Project Path="DummyClient/DummyClient.csproj" />
   <Project Path="Server/Server.csproj" />
+  <Project Path="StressTest/StressTest.csproj" />
 </Solution>

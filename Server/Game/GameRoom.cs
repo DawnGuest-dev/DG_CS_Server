@@ -118,21 +118,25 @@ public class GameRoom : IJobQueue
 
     private void SendPacket<T>(Player player, T packet) where T : BasePacket
     {
-        // 패킷 구분하기
-        if ((int)packet.Id > 100)
+        if (player.Session == null) return;
+
+        int id = (int)packet.Id;
+
+        // [100 ~ 199] : TCP
+        if (id < 200)
         {
-            // TCP
             player.Session.Send(PacketManager.Instance.Serialize(packet));
         }
-        else if ((int)packet.Id > 200)
+        // [200 ~ 299] : UDP
+        else if (id < 300)
         {
-            // UDP(ch1)
             player.Session.SendUDP(PacketManager.Instance.Serialize(packet), NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
         }
-        else if ((int)packet.Id > 300)
+        // [300 ~ ] : RUDP
+        else
         {
-            // RUDP(ch2)
-            player.Session.SendUDP(PacketManager.Instance.Serialize(packet), NetConfig.Ch_RUDP2, DeliveryMethod.ReliableOrdered);
+            // TCP처럼 안정적이지만 UDP 기반 (채팅, 스킬 사용 등)
+            player.Session.SendUDP(PacketManager.Instance.Serialize(packet), NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
         }
     }
 
@@ -163,7 +167,6 @@ public class GameRoom : IJobQueue
                 {
                     if (player.Id == playerId) continue;
                     SendPacket(player, packet);
-                    LogManager.Info($"[BroadcastExcept] {player.Name}({player.Id}): {packet.GetType().Name}");
                 }
             }
         }
@@ -192,77 +195,72 @@ public class GameRoom : IJobQueue
     {
         _jobQueue.Flush();
     }
-
+    
     public void Enter(Player newPlayer)
     {
-        if(newPlayer == null) return;
-        
-        if(_players.ContainsKey(newPlayer.Id)) return;
-        
-        _players.Add(newPlayer.Id, newPlayer);
-        newPlayer.Session.MyPlayer = newPlayer;
-        
-        Cell cell = GetCell(newPlayer.X, newPlayer.Z);
-        cell.Add(newPlayer);
-        
-        LogManager.Info($"Player {newPlayer.Id} entered the game room");
-        
-        List<PlayerInfo> otherPlayerList = _players.Values
-            .Where(p => p.Id != newPlayer.Id)
-            .Select(p => new PlayerInfo
+        Push(() => 
         {
-            playerId = p.Id,
-            posX = p.X,
-            posY = p.Y,
-            posZ = p.Z
-        }).ToList();
-        
-        S_LoginRes res = new()
-        {
-            Success = true,
-            MySessionId = newPlayer.Session.SessionId,
-            SpawnPosX = newPlayer.X,
-            SpawnPosY = newPlayer.Y,
-            SpawnPosZ = newPlayer.Z,
-            OtherPlayerInfos = otherPlayerList
-        };
-        
-        // 방의 모든 사람들 좌표 얻어야함
-        SendPacket(newPlayer, res);
-        
-        // 입장을 다른 사람들한테 알려야함
-        S_OnPlayerJoined onPlayerJoined = new()
-        {
-            PlayerInfo = new PlayerInfo()
+            if(newPlayer == null || _players.ContainsKey(newPlayer.Id)) return;
+            
+            _players.Add(newPlayer.Id, newPlayer);
+            newPlayer.Session.MyPlayer = newPlayer;
+            
+            Cell cell = GetCell(newPlayer.X, newPlayer.Z);
+            cell.Add(newPlayer);
+            
+            LogManager.Info($"Player {newPlayer.Id} entered. Pos({newPlayer.X:F1},{newPlayer.Z:F1}) Cell({GetCellIndex(newPlayer.X, newPlayer.Z)})");
+            
+            // 1. 내 주변 유저 정보 수집 (AOI 적용)
+            List<PlayerInfo> otherPlayerList = new List<PlayerInfo>();
+            
+            foreach(Cell nearCell in GetNearCells(newPlayer.X, newPlayer.Z))
             {
-                playerId = newPlayer.Id,
-                posX = newPlayer.X,
-                posY = newPlayer.Y,
-                posZ = newPlayer.Z
+                foreach(Player p in nearCell.Players)
+                {
+                    if(p.Id == newPlayer.Id) continue;
+                    otherPlayerList.Add(new PlayerInfo { playerId = p.Id, posX = p.X, posY = p.Y, posZ = p.Z });
+                }
             }
-        };
-        
-        BroadcastExcept(newPlayer.Id, onPlayerJoined);
-    }
 
+            S_LoginRes res = new()
+            {
+                Success = true,
+                MySessionId = newPlayer.Session.SessionId,
+                SpawnPosX = newPlayer.X, SpawnPosY = newPlayer.Y, SpawnPosZ = newPlayer.Z,
+                OtherPlayerInfos = otherPlayerList
+            };
+            
+            SendPacket(newPlayer, res);
+            
+            // 2. 주변에 내 입장 알림
+            S_OnPlayerJoined onPlayerJoined = new()
+            {
+                PlayerInfo = new PlayerInfo() { playerId = newPlayer.Id, posX = newPlayer.X, posY = newPlayer.Y, posZ = newPlayer.Z }
+            };
+            
+            BroadcastExcept(newPlayer.Id, onPlayerJoined);
+        });
+    }
+    
     public void Leave(int playerId)
     {
-        if (_players.ContainsKey(playerId))
+        Push(() => 
         {
-            BroadcastExcept(playerId, new S_OnPlayerLeft { PlayerId = playerId });
-        }
-        
-        // Room에 Player 정보 잠시 남겨놓기
-        Task.Delay(1000).Wait();
-        
-        if (_players.Remove(playerId, out Player player))
-        {
-            Cell cell = GetCell(player.X, player.Z);
-            cell.Remove(player);
-            
-            player.Session.MyPlayer = null;
-            LogManager.Info($"Player {player.Id} left the game room");
-        }
+            if (_players.ContainsKey(playerId))
+            {
+                // 주변에 퇴장 알림
+                BroadcastExcept(playerId, new S_OnPlayerLeft { PlayerId = playerId });
+                
+                if (_players.Remove(playerId, out Player player))
+                {
+                    Cell cell = GetCell(player.X, player.Z);
+                    cell.Remove(player);
+                    
+                    if(player.Session != null) player.Session.MyPlayer = null;
+                    LogManager.Info($"Player {player.Id} left.");
+                }
+            }
+        });
     }
 
     public void HandleMove(Player player, C_Move packet)
@@ -275,7 +273,7 @@ public class GameRoom : IJobQueue
         {
             if (ConfigManager.Config.NeighborZones.TryGetValue("East", out ServerConfig.ZoneInfo neighbor))
             {
-                Console.WriteLine($"[Move] {player.Name}({player.Id}): X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}, MapSizeX: {MapSizeX}, HandoverThreshold: {HandoverThreshold}, SpawnSafetyMargin: {SpawnSafetyMargin}");
+                // Console.WriteLine($"[Move] {player.Name}({player.Id}): X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}, MapSizeX: {MapSizeX}, HandoverThreshold: {HandoverThreshold}, SpawnSafetyMargin: {SpawnSafetyMargin}");
                 // 다음 서버의 서쪽 끝(-500) + 안전 거리(20) = -480 위치로 보냄
                 float nextX = -MapSizeX + SpawnSafetyMargin;
                 InitiateHandover(player, neighbor, nextX, player.Z);
@@ -308,7 +306,7 @@ public class GameRoom : IJobQueue
         {
             oldCell.Remove(player);
             newCell.Add(player);
-            Console.WriteLine($"Player {player.Id} moved to New Cell {GetCellIndex(player.X, player.Z)}");
+            // Console.WriteLine($"Player {player.Id} moved to New Cell {GetCellIndex(player.X, player.Z)}");
         }
 
         S_Move moveRes = new()
@@ -351,7 +349,7 @@ public class GameRoom : IJobQueue
                 Msg = packet.Msg
             };
         
-            Console.WriteLine($"[Chat] {player.Name}({player.Id}): {packet.Msg}");
+            // Console.WriteLine($"[Chat] {player.Name}({player.Id}): {packet.Msg}");
         
             BroadcastCell(player.Id, chatRes);   
         }
@@ -362,7 +360,7 @@ public class GameRoom : IJobQueue
         // 1. 중복 처리 방지 (간단 체크)
         if (player.Session == null) return;
 
-        Console.WriteLine($"[Handover] {player.Name} leaving to Zone {targetZone.ZoneId} ({targetZone.Port})");
+        // Console.WriteLine($"[Handover] {player.Name} leaving to Zone {targetZone.ZoneId} ({targetZone.Port})");
 
         // 2. 이관 토큰 생성
         string token = Guid.NewGuid().ToString();

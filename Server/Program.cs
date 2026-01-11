@@ -12,12 +12,12 @@ namespace Server
     {
         public override void OnConnected(EndPoint endPoint)
         {
-            Console.WriteLine($"OnConnected: {endPoint}, ID: {SessionId}");
+            // Console.WriteLine($"OnConnected: {endPoint}, ID: {SessionId}");
         }
 
         public override void OnDisconnected(EndPoint endPoint)
         {
-            Console.WriteLine($"OnDisconnected: {endPoint}");
+            // Console.WriteLine($"OnDisconnected: {endPoint}");
             
             int playerId = MyPlayer?.Id ?? 0;
             

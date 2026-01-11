@@ -32,11 +32,11 @@ public class Player : GameObject
             };
                 
             CurrentHp = Stat.MaxHp;
-            Console.WriteLine($"[Player] Init Stat Level:{level} HP:{CurrentHp}/{Stat.MaxHp}");
+            // Console.WriteLine($"[Player] Init Stat Level:{level} HP:{CurrentHp}/{Stat.MaxHp}");
         }
         else
         {
-            Console.WriteLine($"[Error] No Stat Data for Level {level}");
+            // Console.WriteLine($"[Error] No Stat Data for Level {level}");
         }
     }
 

@@ -42,17 +42,17 @@ public class RudpHandler : INetEventListener
                 session.UdpPeer = peer;
                 peer.Tag = session;
                 
-                Console.WriteLine($"Accepted: {peer.Address}");
+                // Console.WriteLine($"Accepted: {peer.Address}");
             }
             else
             {
-                Console.WriteLine($"Session Not Found: {sessionId}");
+                // Console.WriteLine($"Session Not Found: {sessionId}");
                 request.Reject();
             }
         }
         else
         {
-            Console.WriteLine("Invalid Session ID");
+            // Console.WriteLine("Invalid Session ID");
             request.Reject();
         }
     }
@@ -60,7 +60,7 @@ public class RudpHandler : INetEventListener
     // 접속 완료
     public void OnPeerConnected(NetPeer peer)
     {
-        Console.WriteLine($"Peer connected: {peer.Address}");
+        // Console.WriteLine($"Peer connected: {peer.Address}");
     }
 
     // 
@@ -103,13 +103,13 @@ public class RudpHandler : INetEventListener
     {
         string msg = reader.GetString();
         
-        Console.WriteLine($"UDP: {msg}");
+        // Console.WriteLine($"UDP: {msg}");
     }
 
     private void HandleRUDP1(NetPeer peer, NetPacketReader reader)
     {
         string msg = reader.GetString();
-        Console.WriteLine($"RUDP1: {msg}");
+        // Console.WriteLine($"RUDP1: {msg}");
         
         NetDataWriter writer = new();
         writer.Put("RUDP1 OK");
@@ -119,7 +119,7 @@ public class RudpHandler : INetEventListener
     private void HandleRUDP2(NetPeer peer, NetPacketReader reader)
     {
         string msg = reader.GetString();
-        Console.WriteLine($"RUDP2: {msg}");
+        // Console.WriteLine($"RUDP2: {msg}");
         
         NetDataWriter writer = new();
         writer.Put("RUDP2 OK");

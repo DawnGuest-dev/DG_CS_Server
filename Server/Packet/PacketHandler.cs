@@ -26,8 +26,6 @@ public class PacketHandler
                 spawnX = state.X; 
                 spawnY = state.Y;
                 spawnZ = state.Z;
-            
-                LogManager.Info($"[Handover] Found State! Pos: ({spawnX}, {spawnY}, {spawnZ})");
             }
             else
             {

@@ -11,6 +11,7 @@ public class Listener
     public void Init(IPEndPoint endPoint, Func<Session> sessionFactory)
     {
         _listenSocket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        _listenSocket.NoDelay = true;
         _sessionFactory = sessionFactory;
             
         _listenSocket.Bind(endPoint);
@@ -46,7 +47,7 @@ public class Listener
         }
         else
         {
-            Console.WriteLine($"Accept Failed: {args.SocketError}");
+            // Console.WriteLine($"Accept Failed: {args.SocketError}");
         }
             
         RegisterAccept(args);

@@ -19,7 +19,7 @@ public class SessionManager
         
         _sessions.TryAdd(newId, session);
         
-        Console.WriteLine($"Generated Session ID: {newId}");
+        // Console.WriteLine($"Generated Session ID: {newId}");
         
         return session;
     }
