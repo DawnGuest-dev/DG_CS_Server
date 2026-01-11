@@ -3,6 +3,7 @@ using Server.Core;
 using Server.Data;
 using Server.DB;
 using Server.Game;
+using Server.Game.Job;
 using Server.Packet;
 using Server.Utils;
 
@@ -21,13 +22,11 @@ namespace Server
             
             int playerId = MyPlayer?.Id ?? 0;
             
-            if(playerId > 0) Game.GameRoom.Instance.Leave(playerId);
-            {
-                GameRoom.Instance.Push(() =>
-                {
-                    GameRoom.Instance.Leave(playerId);
-                });
-            }
+            LeaveJob job = JobPool<LeaveJob>.Get();
+        
+            job.PlayerId = playerId;
+        
+            GameRoom.Instance.Push(job);
         }
 
         public override int OnRecv(ArraySegment<byte> buffer)

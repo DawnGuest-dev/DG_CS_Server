@@ -3,6 +3,7 @@ using Server.Core;
 using Server.Data;
 using Server.DB;
 using Server.Game;
+using Server.Game.Job;
 using Server.Utils;
 
 namespace Server.Packet;
@@ -33,46 +34,52 @@ public class PacketHandler
             }
         }
         
-        GameRoom.Instance.Push(() =>
+        Player newPlayer = new Player()
         {
-            Player newPlayer = new Player()
-            {
-                Id = session.SessionId,
-                Name = "Player" + session.SessionId,
-                Session = session,
-                X = spawnX, Y = spawnY, Z = spawnZ // 서버 메모리에도 적용
-            };
+            Id = session.SessionId,
+            Name = "Player" + session.SessionId,
+            Session = session,
+            X = spawnX, Y = spawnY, Z = spawnZ // 서버 메모리에도 적용
+        };
         
-            newPlayer.Init(1);
-            GameRoom.Instance.Enter(newPlayer);
-        });
+        EnterJob job = JobPool<EnterJob>.Get();
+        job.NewPlayer = newPlayer;
+    
+        GameRoom.Instance.Push(job);
     }
     
     public static void C_MoveReq(Session session, C_Move packet)
     {
         // Console.WriteLine($"[Move] X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
         
-        GameRoom.Instance.Push(() => 
-        {
-            // JobQueue 안에서 안전하게 접근
-            Player player = session.MyPlayer;
-            if (player == null) return;
+        var p = packet as C_Move;
+        var player = session.MyPlayer;
 
-            GameRoom.Instance.HandleMove(player, packet);
-        });
+        if (player == null) return;
+        
+        MoveJob job = JobPool<MoveJob>.Get();
+        
+        job.Player = player;
+        job.Packet = p;
+        
+        GameRoom.Instance.Push(job);
     }
 
     public static void C_ChatReq(Session session, C_Chat packet)
     {
         // Console.WriteLine($"[Chat] message: {packet.Msg}");
         
-        GameRoom.Instance.Push(() => 
-        {
-            Player player = session.MyPlayer;
-            if (player == null) return;
-
-            GameRoom.Instance.HandleChat(player, packet);
-        });
+        var p = packet as C_Chat;
+        var player = session.MyPlayer;
+        
+        if (player == null) return;
+        
+        ChatJob job = JobPool<ChatJob>.Get();
+        
+        job.Player = player;
+        job.Packet = p;
+        
+        GameRoom.Instance.Push(job);
     }
     
 }

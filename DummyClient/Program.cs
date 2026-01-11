@@ -211,7 +211,31 @@ namespace DummyClient
                 {
                     // (이동 로직은 동일하여 생략, 기존 코드 그대로 두시면 됩니다)
                     _currentX += 5.0f;
-                    // ... C_Move 전송 ...
+
+                    C_Move movePacket = new()
+                    {
+                        X = _currentX,
+                        Y = 0,
+                        Z = 0
+                    };
+
+                    byte[] pd = PacketManager.Instance.Serialize(movePacket);
+                    netManager.FirstPeer.Send(pd, NetConfig.Ch_RUDP1, DeliveryMethod.Sequenced);
+
+                    // 2초(2000ms)마다 글로벌 채팅 전송
+                    if (Environment.TickCount64 % 2000 < 35)
+                    {
+                        // 포트 번호와 좌표를 같이 보내서 누가 보냈는지 확인
+                        string msg = $"/g I'm at Port:{_currentPort} Pos:{_currentX:F0}";
+
+                        C_Chat chatPacket = new C_Chat() { Msg = msg };
+                        byte[] data = PacketManager.Instance.Serialize(chatPacket);
+
+                        // 채팅은 중요하므로 ReliableOrdered (채널 1)
+                        netManager.FirstPeer.Send(data, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
+
+                        Console.WriteLine($"[Chat] Sent: {msg}");
+                    }
                 }
 
                 Thread.Sleep(33);

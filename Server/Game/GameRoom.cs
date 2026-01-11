@@ -4,13 +4,14 @@ using LiteNetLib;
 using Server.Core;
 using Server.Data;
 using Server.DB;
+using Server.Game.Job;
 using Server.Game.Room;
 using Server.Packet;
 using Server.Utils;
 
 namespace Server.Game;
 
-public class GameRoom : IJobQueue
+public class GameRoom
 {
     // 편의상 일단 1개
     public static GameRoom Instance { get; } = new();
@@ -185,8 +186,8 @@ public class GameRoom : IJobQueue
             SendPacket(p, packet);
         }
     }
-    
-    public void Push(Action job)
+
+    public void Push(IJob job)
     {
         _jobQueue.Push(job);
     }
@@ -198,69 +199,63 @@ public class GameRoom : IJobQueue
     
     public void Enter(Player newPlayer)
     {
-        Push(() => 
+        if(newPlayer == null || _players.ContainsKey(newPlayer.Id)) return;
+            
+        _players.Add(newPlayer.Id, newPlayer);
+        newPlayer.Session.MyPlayer = newPlayer;
+            
+        Cell cell = GetCell(newPlayer.X, newPlayer.Z);
+        cell.Add(newPlayer);
+            
+        LogManager.Info($"Player {newPlayer.Id} entered. Pos({newPlayer.X:F1},{newPlayer.Z:F1}) Cell({GetCellIndex(newPlayer.X, newPlayer.Z)})");
+            
+        // 1. 내 주변 유저 정보 수집 (AOI 적용)
+        List<PlayerInfo> otherPlayerList = new List<PlayerInfo>();
+            
+        foreach(Cell nearCell in GetNearCells(newPlayer.X, newPlayer.Z))
         {
-            if(newPlayer == null || _players.ContainsKey(newPlayer.Id)) return;
-            
-            _players.Add(newPlayer.Id, newPlayer);
-            newPlayer.Session.MyPlayer = newPlayer;
-            
-            Cell cell = GetCell(newPlayer.X, newPlayer.Z);
-            cell.Add(newPlayer);
-            
-            LogManager.Info($"Player {newPlayer.Id} entered. Pos({newPlayer.X:F1},{newPlayer.Z:F1}) Cell({GetCellIndex(newPlayer.X, newPlayer.Z)})");
-            
-            // 1. 내 주변 유저 정보 수집 (AOI 적용)
-            List<PlayerInfo> otherPlayerList = new List<PlayerInfo>();
-            
-            foreach(Cell nearCell in GetNearCells(newPlayer.X, newPlayer.Z))
+            foreach(Player p in nearCell.Players)
             {
-                foreach(Player p in nearCell.Players)
-                {
-                    if(p.Id == newPlayer.Id) continue;
-                    otherPlayerList.Add(new PlayerInfo { playerId = p.Id, posX = p.X, posY = p.Y, posZ = p.Z });
-                }
+                if(p.Id == newPlayer.Id) continue;
+                otherPlayerList.Add(new PlayerInfo { playerId = p.Id, posX = p.X, posY = p.Y, posZ = p.Z });
             }
+        }
 
-            S_LoginRes res = new()
-            {
-                Success = true,
-                MySessionId = newPlayer.Session.SessionId,
-                SpawnPosX = newPlayer.X, SpawnPosY = newPlayer.Y, SpawnPosZ = newPlayer.Z,
-                OtherPlayerInfos = otherPlayerList
-            };
+        S_LoginRes res = new()
+        {
+            Success = true,
+            MySessionId = newPlayer.Session.SessionId,
+            SpawnPosX = newPlayer.X, SpawnPosY = newPlayer.Y, SpawnPosZ = newPlayer.Z,
+            OtherPlayerInfos = otherPlayerList
+        };
             
-            SendPacket(newPlayer, res);
+        SendPacket(newPlayer, res);
             
-            // 2. 주변에 내 입장 알림
-            S_OnPlayerJoined onPlayerJoined = new()
-            {
-                PlayerInfo = new PlayerInfo() { playerId = newPlayer.Id, posX = newPlayer.X, posY = newPlayer.Y, posZ = newPlayer.Z }
-            };
+        // 2. 주변에 내 입장 알림
+        S_OnPlayerJoined onPlayerJoined = new()
+        {
+            PlayerInfo = new PlayerInfo() { playerId = newPlayer.Id, posX = newPlayer.X, posY = newPlayer.Y, posZ = newPlayer.Z }
+        };
             
-            BroadcastExcept(newPlayer.Id, onPlayerJoined);
-        });
+        BroadcastExcept(newPlayer.Id, onPlayerJoined);
     }
     
     public void Leave(int playerId)
     {
-        Push(() => 
+        if (_players.ContainsKey(playerId))
         {
-            if (_players.ContainsKey(playerId))
-            {
-                // 주변에 퇴장 알림
-                BroadcastExcept(playerId, new S_OnPlayerLeft { PlayerId = playerId });
+            // 주변에 퇴장 알림
+            BroadcastExcept(playerId, new S_OnPlayerLeft { PlayerId = playerId });
                 
-                if (_players.Remove(playerId, out Player player))
-                {
-                    Cell cell = GetCell(player.X, player.Z);
-                    cell.Remove(player);
+            if (_players.Remove(playerId, out Player player))
+            {
+                Cell cell = GetCell(player.X, player.Z);
+                cell.Remove(player);
                     
-                    if(player.Session != null) player.Session.MyPlayer = null;
-                    LogManager.Info($"Player {player.Id} left.");
-                }
+                if(player.Session != null) player.Session.MyPlayer = null;
+                LogManager.Info($"Player {player.Id} left.");
             }
-        });
+        }
     }
 
     public void HandleMove(Player player, C_Move packet)
@@ -390,21 +385,9 @@ public class GameRoom : IJobQueue
     
     private void OnRecvGlobalChat(string msg)
     {
-        Push(() =>
-        {
-            string[] parts = msg.Split(':', 2);
-            if (parts.Length < 2) return;
-
-            string senderName = parts[0];
-            string message = parts[1];
-
-            S_Chat packet = new S_Chat()
-            {
-                PlayerId = 0,
-                Msg = $"[Global] {senderName}: {message}"
-            };
-            
-            BroadcastAll(packet);
-        });
+        var job = JobPool<GlobalChatJob>.Get();
+        job.RawMessage = msg;
+        
+        Push(job);
     }
 }

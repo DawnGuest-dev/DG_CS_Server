@@ -17,6 +17,7 @@ public class Player : GameObject
     public Player()
     {
         // Player 초기화
+        Init(1);
     }
 
     public void Init(int level)
