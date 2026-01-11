@@ -1,0 +1,21 @@
+﻿# 1. 소스: 파일 읽기
+[sources.game_logs]
+type = "file"
+include = ["/var/logs/game/*.json"] # 컨테이너 내부 경로 (아래에서 매핑함)
+ignore_older_secs = 600
+
+# 2. 변환: JSON 파싱 (Serilog 포맷 해석)
+[transforms.parse_json]
+type = "remap"
+inputs = ["game_logs"]
+source = '''
+  . = parse_json!(.message)
+'''
+
+# 3. 싱크: Loki로 전송
+[sinks.loki]
+type = "loki"
+inputs = ["parse_json"]
+endpoint = "http://loki:3100" # docker-compose 서비스명
+encoding.codec = "json"
+labels.source = "game-server"
