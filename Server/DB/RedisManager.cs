@@ -74,18 +74,30 @@ public static class RedisManager
         LogManager.Info($"Subscribe to {channel}");
     }
 
-    public static void SavePlayerState(int playerId, PlayerState state)
+    public static void SavePlayerState(string authToken, PlayerState state)
     {
         string json = JsonSerializer.Serialize(state);
-        SetString($"PlayerState:{playerId}", json, TimeSpan.FromMinutes(10)); // Test: 10Min
+        SetString($"PlayerState:{authToken}", json, TimeSpan.FromMinutes(10)); // Test: 10Min
     }
 
-    public static PlayerState LoadPlayerState(int playerId)
+    public static PlayerState LoadPlayerState(string authToken)
     {
-        string json = GetString($"PlayerState:{playerId}");
+        // Key를 저장할 때와 똑같이 맞춰야 합니다.
+        // SavePlayerState 할 때도 $"PlayerState:{authToken}"으로 저장했는지 확인 필요!
+        string key = $"PlayerState:{authToken}";
+        
+        string json = GetString(key);
         if (string.IsNullOrEmpty(json)) return null;
         
-        return JsonSerializer.Deserialize<PlayerState>(json);
+        // JSON 역직렬화
+        try 
+        {
+            return JsonSerializer.Deserialize<PlayerState>(json);
+        }
+        catch 
+        {
+            return null;
+        }
     }
     
     

@@ -1,0 +1,103 @@
+﻿version: '3.8'
+
+services:
+  # --- [Game Infrastructure] ---
+  
+  # 1. 공유 DB (Redis)
+  redis:
+    image: redis/redis-stack:latest
+    container_name: dg-cs-redis
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+    networks:
+      - dg-net
+
+  # 2. 게임 서버 Zone 1
+  zone1:
+    build: .
+    container_name: zone1
+    ports:
+      - "12345:12345"
+      - "12345:12345/udp"
+    environment:
+      - TZ=Asia/Seoul
+    command: ["1"]
+    depends_on:
+      - redis
+    networks:
+      - dg-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # [중요] 로그 공유를 위한 볼륨 마운트
+    volumes:
+      - shared-logs:/app/Logs
+
+  # 3. 게임 서버 Zone 2
+  zone2:
+    build: .
+    container_name: zone2
+    ports:
+      - "12346:12346"
+      - "12346:12346/udp"
+    environment:
+      - TZ=Asia/Seoul
+    command: ["2"]
+    depends_on:
+      - redis
+    networks:
+      - dg-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # [중요] 같은 볼륨 공유
+    volumes:
+      - shared-logs:/app/Logs
+
+  # --- [Observability Stack] ---
+  
+  # 4. Vector (로그 수집기)
+  vector:
+    image: timberio/vector:latest-alpine
+    container_name: vector
+    volumes:
+      - ./Deploy/configs/vector.toml:/etc/vector/vector.toml:ro # 설정 파일
+      - shared-logs:/var/logs/game:ro  # [중요] 게임 로그를 읽기 전용으로 마운트
+    command: ["--config", "/etc/vector/vector.toml"]
+    depends_on:
+      - loki
+    networks:
+      - dg-net
+
+  # 5. Loki (로그 저장소)
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./Deploy/configs/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - dg-net
+
+  # 6. Grafana (시각화 대시보드)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - loki
+    networks:
+      - dg-net
+
+# 네트워크 정의
+networks:
+  dg-net:
+    driver: bridge
+
+# 볼륨 정의 (로그 파일 공유용)
+volumes:
+  shared-logs:

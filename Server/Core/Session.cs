@@ -27,6 +27,8 @@ public abstract class Session
     // Game
     public Player MyPlayer { get; set; }
     
+    public string AuthToken { get; set; }
+    
     public void Start(Socket socket)
     {
         _socket = socket;
