@@ -1,6 +1,7 @@
 ﻿using Common;
 using Common.Packet;
 using LiteNetLib;
+using Serilog;
 using Server.Core;
 using Server.Data;
 using Server.DB;
@@ -116,35 +117,69 @@ public class GameRoom : IJobQueue
         return zones;
     }
 
-    public void Broadcast<T>(float x, float z, T packet) where T : BasePacket
+    private void SendPacket<T>(Player player, T packet) where T : BasePacket
     {
-        byte[] data = PacketManager.Instance.Serialize(packet);
-        
+        // 패킷 구분하기
+        if ((int)packet.Id > 100)
+        {
+            // TCP
+            player.Session.Send(PacketManager.Instance.Serialize(packet));
+        }
+        else if ((int)packet.Id > 200)
+        {
+            // UDP(ch1)
+            player.Session.SendUDP(PacketManager.Instance.Serialize(packet), NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
+        }
+        else if ((int)packet.Id > 300)
+        {
+            // RUDP(ch2)
+            player.Session.SendUDP(PacketManager.Instance.Serialize(packet), NetConfig.Ch_RUDP2, DeliveryMethod.ReliableOrdered);
+        }
+    }
+
+    private void Broadcast<T>(float x, float z, T packet) where T : BasePacket
+    {
         List<Cell> zones = GetNearCells(x, z);
 
         foreach (Cell cell in zones)
         {
             foreach (Player player in cell.Players)
             {
-                // 패킷 구분 (나중에 수정)
-                if (packet.Id == PacketId.S_Move)
-                {
-                    player.Session.SendUDP(data, NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
-                }
-                else if(packet.Id == PacketId.S_Chat)
-                {
-                    player.Session.SendUDP(data, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
-                }
+                SendPacket(player, packet);
             }
         }
     }
 
+    public void BroadcastExcept<T>(int playerId, T packet) where T : BasePacket
+    {
+        _players.TryGetValue(playerId, out var myPlayer);
+
+        if (myPlayer != null)
+        {
+            List<Cell> zones = GetNearCells(myPlayer.X, myPlayer.Z);
+
+            foreach (Cell cell in zones)
+            {
+                foreach (Player player in cell.Players)
+                {
+                    if (player.Id == playerId) continue;
+                    SendPacket(player, packet);
+                }
+            }
+        }
+    }
+    
+    public void BroadcastCell<T>(int playerId, T packet) where T : BasePacket
+    {
+        _players.TryGetValue(playerId, out var myPlayer);
+        if (myPlayer != null) Broadcast(myPlayer.X, myPlayer.Z, packet);
+    }
+
     public void BroadcastAll<T>(T packet) where T : BasePacket
     {
-        byte[] data = PacketManager.Instance.Serialize(packet);
         foreach (Player p in _players.Values)
         {
-            p.Session.SendUDP(data, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
+            SendPacket(p, packet);
         }
     }
     
@@ -239,7 +274,7 @@ public class GameRoom : IJobQueue
             Z = player.Z
         };
         
-        Broadcast(player.X, player.Z, moveRes);
+        BroadcastCell(player.Id, moveRes);
     }
     
     public void HandleChat(Player player, C_Chat packet)
@@ -273,7 +308,7 @@ public class GameRoom : IJobQueue
         
             Console.WriteLine($"[Chat] {player.Name}({player.Id}): {packet.Msg}");
         
-            Broadcast(player.X, player.Z, chatRes);   
+            BroadcastCell(player.Id, chatRes);   
         }
     }
     
