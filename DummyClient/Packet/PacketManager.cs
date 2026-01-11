@@ -20,6 +20,8 @@ public class PacketManager
         _onRecv.Add(PacketId.S_Move, MakePacketAction<S_Move>(PacketHandler.S_Move));
         _onRecv.Add(PacketId.S_Chat, MakePacketAction<S_Chat>(PacketHandler.S_Chat));
         _onRecv.Add(PacketId.S_TransferReq, MakePacketAction<S_TransferReq>(PacketHandler.S_TransferReq));
+        _onRecv.Add(PacketId.S_OnPlayerJoined, MakePacketAction<S_OnPlayerJoined>(PacketHandler.S_OnPlayerJoined));
+        _onRecv.Add(PacketId.S_OnPlayerLeft, MakePacketAction<S_OnPlayerLeft>(PacketHandler.S_OnPlayerLeft));
     }
     
     private Action<byte[]> MakePacketAction<T>(Action<T> handler) where T : BasePacket

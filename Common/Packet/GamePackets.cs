@@ -2,6 +2,15 @@
 
 namespace Common.Packet;
 
+[MemoryPackable]
+public partial class PlayerInfo
+{
+    public int playerId;
+    public float posX;
+    public float posY;
+    public float posZ;
+}
+
 // [TCP] 로그인 요청 (Client -> Server)
 [MemoryPackable]
 public partial class C_LoginReq : BasePacket
@@ -23,6 +32,8 @@ public partial class S_LoginRes : BasePacket
     public float SpawnPosX;
     public float SpawnPosY;
     public float SpawnPosZ;
+    
+    public List<PlayerInfo> OtherPlayerInfos = new();
 }
 
 // [UDP/Channel 0] 이동 패킷 (Client -> Server)
@@ -75,4 +86,20 @@ public partial class S_TransferReq : BasePacket
     public string TargetIp;
     public int TargetPort;
     public string TransferToken;
+}
+
+[MemoryPackable]
+public partial class S_OnPlayerJoined : BasePacket
+{
+    public override PacketId Id => PacketId.S_OnPlayerJoined;
+    
+    public PlayerInfo PlayerInfo;
+}
+
+[MemoryPackable]
+public partial class S_OnPlayerLeft : BasePacket
+{
+    public override PacketId Id => PacketId.S_OnPlayerLeft;
+    
+    public int PlayerId;
 }

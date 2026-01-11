@@ -35,17 +35,6 @@ public class PacketHandler
             }
         }
         
-        S_LoginRes res = new()
-        {
-            Success = true,
-            MySessionId = session.SessionId,
-            SpawnPosX = spawnX,
-            SpawnPosY = spawnY,
-            SpawnPosZ = spawnZ
-        };
-    
-        session.Send(PacketManager.Instance.Serialize(res));
-        
         GameRoom.Instance.Push(() =>
         {
             Player newPlayer = new Player()
@@ -63,7 +52,7 @@ public class PacketHandler
     
     public static void C_MoveReq(Session session, C_Move packet)
     {
-        Console.WriteLine($"[Move] X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
+        // Console.WriteLine($"[Move] X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}");
         
         GameRoom.Instance.Push(() => 
         {

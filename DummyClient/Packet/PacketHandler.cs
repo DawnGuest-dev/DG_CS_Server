@@ -15,6 +15,7 @@ public class PacketHandler
         {
             Console.WriteLine("[Login Success] My Session ID: " + packet.MySessionId);
             Console.WriteLine("[Login Success] Spawn Pos: " + packet.SpawnPosX + ", " + packet.SpawnPosY + ", " + packet.SpawnPosZ);
+            Console.WriteLine($"[Login Success] Other Players: {packet.OtherPlayerInfos.Count}");
             
             Program.MySessionId = packet.MySessionId;
         }
@@ -36,7 +37,7 @@ public class PacketHandler
     
     public static void S_TransferReq(S_TransferReq packet)
     {
-        Console.WriteLine($"[Client] ⚠️ Transfer Command Received! -> Destination: {packet.TargetIp}:{packet.TargetPort}");
+        Console.WriteLine($"[Client] Transfer Command Received! -> Destination: {packet.TargetIp}:{packet.TargetPort}");
 
         // 1. 목적지 정보 저장
         TargetIp = packet.TargetIp;
@@ -45,5 +46,15 @@ public class PacketHandler
             
         // 2. 플래그 ON (메인 루프에서 감지)
         IsTransfer = true;
+    }
+
+    public static void S_OnPlayerJoined(S_OnPlayerJoined obj)
+    {
+        Console.WriteLine($"[Client] Player Joined! -> PlayerId: {obj.PlayerInfo.playerId}, Pos: {obj.PlayerInfo.posX}, {obj.PlayerInfo.posY}, {obj.PlayerInfo.posZ}");
+    }
+
+    public static void S_OnPlayerLeft(S_OnPlayerLeft obj)
+    {
+        Console.WriteLine($"[Client] Player Left! -> PlayerId: {obj.PlayerId}");
     }
 }

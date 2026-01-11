@@ -1,7 +1,6 @@
 ﻿using Common;
 using Common.Packet;
 using LiteNetLib;
-using Serilog;
 using Server.Core;
 using Server.Data;
 using Server.DB;
@@ -164,6 +163,7 @@ public class GameRoom : IJobQueue
                 {
                     if (player.Id == playerId) continue;
                     SendPacket(player, packet);
+                    LogManager.Info($"[BroadcastExcept] {player.Name}({player.Id}): {packet.GetType().Name}");
                 }
             }
         }
@@ -206,10 +206,55 @@ public class GameRoom : IJobQueue
         cell.Add(newPlayer);
         
         LogManager.Info($"Player {newPlayer.Id} entered the game room");
+        
+        List<PlayerInfo> otherPlayerList = _players.Values
+            .Where(p => p.Id != newPlayer.Id)
+            .Select(p => new PlayerInfo
+        {
+            playerId = p.Id,
+            posX = p.X,
+            posY = p.Y,
+            posZ = p.Z
+        }).ToList();
+        
+        S_LoginRes res = new()
+        {
+            Success = true,
+            MySessionId = newPlayer.Session.SessionId,
+            SpawnPosX = newPlayer.X,
+            SpawnPosY = newPlayer.Y,
+            SpawnPosZ = newPlayer.Z,
+            OtherPlayerInfos = otherPlayerList
+        };
+        
+        // 방의 모든 사람들 좌표 얻어야함
+        SendPacket(newPlayer, res);
+        
+        // 입장을 다른 사람들한테 알려야함
+        S_OnPlayerJoined onPlayerJoined = new()
+        {
+            PlayerInfo = new PlayerInfo()
+            {
+                playerId = newPlayer.Id,
+                posX = newPlayer.X,
+                posY = newPlayer.Y,
+                posZ = newPlayer.Z
+            }
+        };
+        
+        BroadcastExcept(newPlayer.Id, onPlayerJoined);
     }
 
     public void Leave(int playerId)
     {
+        if (_players.ContainsKey(playerId))
+        {
+            BroadcastExcept(playerId, new S_OnPlayerLeft { PlayerId = playerId });
+        }
+        
+        // Room에 Player 정보 잠시 남겨놓기
+        Task.Delay(1000).Wait();
+        
         if (_players.Remove(playerId, out Player player))
         {
             Cell cell = GetCell(player.X, player.Z);
