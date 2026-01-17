@@ -1,0 +1,64 @@
+﻿syntax = "proto3";
+
+package Protocol;
+option csharp_namespace = "Common.Packet";
+
+// [수정됨] 이름 충돌 방지를 위해 접두어 'Id_' 추가
+enum MsgId {
+  Id_None = 0;
+  Id_C_LoginReq = 101;
+  Id_S_LoginRes = 102;
+  Id_S_TransferReq = 103;
+  Id_S_OnPlayerJoined = 104;
+  Id_S_OnPlayerLeft = 105;
+
+  Id_C_Chat = 301;
+  Id_S_Chat = 302;
+
+  Id_C_Move = 201;
+  Id_S_Move = 202;
+}
+
+message PlayerInfo {
+  int32 PlayerId = 1;
+  float PosX = 2;
+  float PosY = 3;
+  float PosZ = 4;
+}
+
+message C_LoginReq {
+  string AuthToken = 1;
+  string TransferToken = 2;
+}
+
+message S_LoginRes {
+  bool Success = 1;
+  int32 MySessionId = 2;
+  float SpawnPosX = 3;
+  float SpawnPosY = 4;
+  float SpawnPosZ = 5;
+  repeated PlayerInfo OtherPlayerInfos = 6;
+}
+
+message S_TransferReq {
+  string TargetIp = 1;
+  int32 TargetPort = 2;
+  string TransferToken = 3;
+}
+
+message S_OnPlayerJoined {
+  PlayerInfo PlayerInfo = 1;
+}
+
+message S_OnPlayerLeft {
+  int32 PlayerId = 1;
+}
+
+message C_Chat {
+  string Msg = 1;
+}
+
+message S_Chat {
+  int32 PlayerId = 1;
+  string Msg = 2;
+}

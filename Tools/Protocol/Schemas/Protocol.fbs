@@ -1,0 +1,16 @@
+﻿namespace Common.Packet;
+
+struct Vec3 {
+  x:float;
+  y:float;
+  z:float;
+}
+
+table C_Move {
+  pos:Vec3;
+}
+
+table S_Move {
+  player_id:int;
+  pos:Vec3;
+}
