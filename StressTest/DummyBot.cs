@@ -1,9 +1,15 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using Common.Packet;
+using Google.FlatBuffers;
+using Google.Protobuf;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using MemoryPack;
+using Protocol;
+using C_LoginReq = Protocol.C_LoginReq;
+using C_Move = Protocol.C_Move;
+using S_LoginRes = Protocol.S_LoginRes;
 
 public class DummyBot : INetEventListener
 {
@@ -17,6 +23,8 @@ public class DummyBot : INetEventListener
     private float _x = 0;
     private float _z = 0;
     private Random _rand = new Random();
+    
+    private FlatBufferBuilder _flatBuilder = new FlatBufferBuilder(1024);
 
     public DummyBot(int id)
     {
@@ -47,8 +55,8 @@ public class DummyBot : INetEventListener
                 TransferToken = null
             };
 
-            SendTcp(req);
-
+            SendTcp(MsgId.IdCLoginReq, req);
+            
             // 4. TCP 응답 대기 (간단하게 블로킹으로 처리)
             Thread t = new Thread(RecvTcpLoop);
             t.IsBackground = true;
@@ -70,22 +78,20 @@ public class DummyBot : INetEventListener
                 int recv = _tcpSocket.Receive(buffer);
                 if (recv == 0) break;
 
-
                 if (recv > 4)
                 {
-                    byte[] body = new byte[recv - 4];
-                    Array.Copy(buffer, 4, body, 0, body.Length);
+                    // ID 확인 (Offset 2)
+                    ushort id = BitConverter.ToUInt16(buffer, 2);
                     
-                    try 
+                    if (id == (ushort)MsgId.IdSLoginRes)
                     {
-                        var res = MemoryPackSerializer.Deserialize<S_LoginRes>(body);
-                        if (res != null && res.Success)
+                        // Protobuf Parse
+                        var res = S_LoginRes.Parser.ParseFrom(new ReadOnlySpan<byte>(buffer, 4, recv - 4));
+                        if (res.Success)
                         {
-                            // 5. 로그인 성공 시 UDP 접속
                             ConnectUdp(res.MySessionId);
                         }
                     }
-                    catch { }
                 }
             }
             catch { break; }
@@ -106,44 +112,54 @@ public class DummyBot : INetEventListener
 
         if (_isConnected)
         {
-            // 0.1초마다 랜덤 이동
-            _x += (float)(_rand.NextDouble() - 0.5) * 30f;
-            _z += (float)(_rand.NextDouble() - 0.5) * 30f;
+            // 좌표 업데이트
+            _x += (float)(_rand.NextDouble() - 0.5) * 5f;
+            _z += (float)(_rand.NextDouble() - 0.5) * 5f;
 
-            // 맵 밖으로 안 나가게
-            if (_x < -500) _x = -500; if (_x > 500) _x = 500;
-            if (_z < -500) _z = -500; if (_z > 500) _z = 500;
+            // [수정] FlatBuffers C_Move 전송
+            _flatBuilder.Clear(); // 빌더 재사용 (필수!)
 
-            C_Move move = new C_Move() { X = _x, Y = 0, Z = _z };
-            SendUdp(move);
+            var posOffset = Vec3.CreateVec3(_flatBuilder, _x, 0, _z);
+            
+            C_Move.StartC_Move(_flatBuilder);
+            C_Move.AddPos(_flatBuilder, posOffset);
+            var offset = C_Move.EndC_Move(_flatBuilder);
+            _flatBuilder.Finish(offset.Value);
+
+            SendUdp(MsgId.IdCMove, _flatBuilder);
         }
     }
 
-    private void SendTcp<T>(T packet) where T : BasePacket
+    private void SendTcp<T>(MsgId msgId, T packet) where T : IMessage
     {
-        // 간단한 직렬화 (PacketManager 로직 복사)
-        byte[] body = MemoryPackSerializer.Serialize(packet);
-        ushort size = (ushort)(4 + body.Length);
-        ushort id = (ushort)packet.Id;
-        byte[] sendBuffer = new byte[size];
-        Array.Copy(BitConverter.GetBytes(size), 0, sendBuffer, 0, 2);
-        Array.Copy(BitConverter.GetBytes(id), 0, sendBuffer, 2, 2);
-        Array.Copy(body, 0, sendBuffer, 4, body.Length);
+        int size = 4 + packet.CalculateSize();
+        byte[] buffer = new byte[size];
 
-        _tcpSocket.Send(sendBuffer);
+        BitConverter.TryWriteBytes(new Span<byte>(buffer, 0, 2), (ushort)size);
+        BitConverter.TryWriteBytes(new Span<byte>(buffer, 2, 2), (ushort)msgId);
+        
+        packet.WriteTo(new Span<byte>(buffer, 4, size - 4));
+
+        _tcpSocket.Send(buffer);
     }
 
-    private void SendUdp<T>(T packet) where T : BasePacket
+    private void SendUdp(MsgId msgId, FlatBufferBuilder builder)
     {
-        byte[] body = MemoryPackSerializer.Serialize(packet);
-        ushort size = (ushort)(4 + body.Length);
-        ushort id = (ushort)packet.Id;
-        byte[] sendBuffer = new byte[size];
-        Array.Copy(BitConverter.GetBytes(size), 0, sendBuffer, 0, 2);
-        Array.Copy(BitConverter.GetBytes(id), 0, sendBuffer, 2, 2);
-        Array.Copy(body, 0, sendBuffer, 4, body.Length);
+        // Builder 데이터 추출
+        var buf = builder.DataBuffer;
+        int bodyStart = buf.Position;
+        int bodyLen = buf.Length - bodyStart;
+        
+        int size = 4 + bodyLen;
+        byte[] buffer = new byte[size]; // 최적화하려면 재사용 버퍼 사용 권장
 
-        _serverPeer.Send(sendBuffer, DeliveryMethod.Sequenced);
+        BitConverter.TryWriteBytes(new Span<byte>(buffer, 0, 2), (ushort)size);
+        BitConverter.TryWriteBytes(new Span<byte>(buffer, 2, 2), (ushort)msgId);
+
+        // Body Copy (Zero-Copy를 위해 Span 사용)
+        buf.ToArray(bodyStart, bodyLen).CopyTo(new Span<byte>(buffer, 4, bodyLen));
+
+        _serverPeer.Send(buffer, DeliveryMethod.Sequenced);
     }
 
     // --- LiteNetLib Interface ---

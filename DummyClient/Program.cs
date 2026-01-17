@@ -1,11 +1,11 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using Common;
-using Common.Packet;
 using DummyClient.Packet;
+using Google.FlatBuffers;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using Protocol;
 
 namespace DummyClient
 {
@@ -126,12 +126,16 @@ namespace DummyClient
                 tcpSocket.Connect(endPoint);
                 Console.WriteLine($"[TCP] Connected: {tcpSocket.RemoteEndPoint}");
 
-                C_LoginReq loginPacket = new()
+                // [수정] Protobuf LoginReq
+                C_LoginReq loginPacket = new C_LoginReq
                 {
                     AuthToken = "dummy_auth",
-                    TransferToken = _transferToken
+                    TransferToken = _transferToken ?? "" // Null 방지
                 };
-                tcpSocket.Send(PacketManager.Instance.Serialize(loginPacket));
+                
+                // SerializeProto 사용
+                byte[] data = PacketManager.Instance.SerializeProto(MsgId.IdCLoginReq, loginPacket);
+                tcpSocket.Send(data);
             }
             catch (Exception e)
             {
@@ -209,31 +213,37 @@ namespace DummyClient
 
                 if (netManager.FirstPeer != null && netManager.FirstPeer.ConnectionState == ConnectionState.Connected)
                 {
-                    // (이동 로직은 동일하여 생략, 기존 코드 그대로 두시면 됩니다)
-                    _currentX += 5.0f;
+                    _currentX += 0.5f; // 이동 속도
 
-                    C_Move movePacket = new()
-                    {
-                        X = _currentX,
-                        Y = 0,
-                        Z = 0
-                    };
+                    // [수정] FlatBuffers C_Move 생성
+                    // 1. 빌더 생성 (1024바이트 정도면 충분)
+                    FlatBufferBuilder builder = new FlatBufferBuilder(1024);
+                    
+                    // 2. Struct 생성
+                    var posOffset = Vec3.CreateVec3(builder, _currentX, 0, 0);
+                    
+                    // 3. Table 생성
+                    C_Move.StartC_Move(builder);
+                    C_Move.AddPos(builder, posOffset);
+                    var offset = Common.Packet.C_Move.EndC_Move(builder);
+                    builder.Finish(offset.Value);
 
-                    byte[] pd = PacketManager.Instance.Serialize(movePacket);
-                    netManager.FirstPeer.Send(pd, NetConfig.Ch_RUDP1, DeliveryMethod.Sequenced);
+                    // 4. 직렬화 (ID: 201)
+                    byte[] moveBytes = PacketManager.Instance.SerializeFlatBuffer(MsgId.IdCMove, builder);
+                    
+                    // 전송
+                    netManager.FirstPeer.Send(moveBytes, NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
 
-                    // 2초(2000ms)마다 글로벌 채팅 전송
+
+                    // [수정] Protobuf C_Chat
                     if (Environment.TickCount64 % 2000 < 35)
                     {
-                        // 포트 번호와 좌표를 같이 보내서 누가 보냈는지 확인
                         string msg = $"/g I'm at Port:{_currentPort} Pos:{_currentX:F0}";
 
-                        C_Chat chatPacket = new C_Chat() { Msg = msg };
-                        byte[] data = PacketManager.Instance.Serialize(chatPacket);
+                        C_Chat chatPacket = new C_Chat { Msg = msg };
+                        byte[] chatBytes = PacketManager.Instance.SerializeProto(MsgId.IdCChat, chatPacket);
 
-                        // 채팅은 중요하므로 ReliableOrdered (채널 1)
-                        netManager.FirstPeer.Send(data, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
-
+                        netManager.FirstPeer.Send(chatBytes, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
                         Console.WriteLine($"[Chat] Sent: {msg}");
                     }
                 }
