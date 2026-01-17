@@ -1,11 +1,9 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using Common.Packet;
 using Google.FlatBuffers;
 using Google.Protobuf;
 using LiteNetLib;
 using LiteNetLib.Utils;
-using MemoryPack;
 using Protocol;
 using C_LoginReq = Protocol.C_LoginReq;
 using C_Move = Protocol.C_Move;
@@ -52,7 +50,7 @@ public class DummyBot : INetEventListener
             C_LoginReq req = new C_LoginReq()
             {
                 AuthToken = $"Dummy_{Guid.NewGuid()}", // 랜덤 아이디
-                TransferToken = null
+                TransferToken = ""
             };
 
             SendTcp(MsgId.IdCLoginReq, req);

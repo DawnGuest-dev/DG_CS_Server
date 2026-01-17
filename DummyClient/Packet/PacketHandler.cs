@@ -29,7 +29,7 @@ public class PacketHandler
     public static void S_Move(ByteBuffer bb)
     {
         // Root 가져오기
-        var packet = Common.Packet.S_Move.GetRootAsS_Move(bb);
+        var packet = Protocol.S_Move.GetRootAsS_Move(bb);
         
         // 데이터 접근 (Struct라 값 형식)
         var pos = packet.Pos.Value;

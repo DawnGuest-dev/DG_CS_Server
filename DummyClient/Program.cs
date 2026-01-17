@@ -225,7 +225,7 @@ namespace DummyClient
                     // 3. Table 생성
                     C_Move.StartC_Move(builder);
                     C_Move.AddPos(builder, posOffset);
-                    var offset = Common.Packet.C_Move.EndC_Move(builder);
+                    var offset = C_Move.EndC_Move(builder);
                     builder.Finish(offset.Value);
 
                     // 4. 직렬화 (ID: 201)
