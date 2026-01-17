@@ -10,43 +10,43 @@ namespace Server.Packet;
 
 public class PacketHandler
 {
-    public static void C_LoginReq(Session session, BasePacket p)
+    public static async void C_LoginReq(Session session, BasePacket p)
     {
-        C_LoginReq packet = p as C_LoginReq;
-        LogManager.Info($"[Login] Token: {packet.AuthToken}");
-        session.AuthToken = packet.AuthToken;
-
-        float spawnX = 0, spawnY = 0, spawnZ = 0;
-        
-        if (!string.IsNullOrEmpty(packet.TransferToken))
+        try
         {
-            // Redis에서 정보 로딩
-            PlayerState state = RedisManager.LoadPlayerState(packet.AuthToken);
-        
-            if (state != null)
+            C_LoginReq packet = p as C_LoginReq;
+            session.AuthToken = packet.AuthToken;
+
+            float spawnX = 0, spawnY = 0, spawnZ = 0;
+            
+            if (!string.IsNullOrEmpty(packet.TransferToken))
             {
+                PlayerState state = await RedisManager.LoadPlayerStateAsync(packet.AuthToken);
+
                 spawnX = state.X; 
                 spawnY = state.Y;
                 spawnZ = state.Z;
             }
-            else
+            
+            Player newPlayer = new Player()
             {
-                LogManager.Error($"[Handover] Failed to load state for {packet.AuthToken}");
-            }
+                Id = session.SessionId,
+                Name = "Player" + session.SessionId,
+                Session = session,
+                X = spawnX, Y = spawnY, Z = spawnZ 
+            };
+            
+            EnterJob job = JobPool<EnterJob>.Get();
+            job.NewPlayer = newPlayer;
+        
+            GameRoom.Instance.Push(job);
         }
-        
-        Player newPlayer = new Player()
+        catch (Exception ex)
         {
-            Id = session.SessionId,
-            Name = "Player" + session.SessionId,
-            Session = session,
-            X = spawnX, Y = spawnY, Z = spawnZ // 서버 메모리에도 적용
-        };
-        
-        EnterJob job = JobPool<EnterJob>.Get();
-        job.NewPlayer = newPlayer;
-    
-        GameRoom.Instance.Push(job);
+            LogManager.Exception(ex, $"[C_LoginReq Error] {ex}");
+            
+            session.Disconnect();
+        }
     }
     
     public static void C_MoveReq(Session session, BasePacket packet)

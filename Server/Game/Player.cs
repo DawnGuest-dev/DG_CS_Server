@@ -7,6 +7,8 @@ public class Player : GameObject
 {
     public Session Session { get; set; }
     
+    public bool IsTransferring { get; set; } = false;
+    
     // 이런 부분 나중에 다 컴포넌트 형식으로 수정
     // GAS 느낌도 고려
     public long LastChatTime { get; set; } = 0;

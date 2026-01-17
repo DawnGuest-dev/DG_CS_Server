@@ -116,46 +116,71 @@ public class GameRoom
         
         return zones;
     }
+    
+    private void SendBytes(Player player, ArraySegment<byte> buffer, ushort packetId)
+    {
+        if (player.Session == null) return;
+
+        // [100 ~ 199] : TCP
+        if (packetId < 200)
+        {
+            player.Session.Send(buffer);
+        }
+        // [200 ~ 299] : UDP (Sequenced)
+        else if (packetId < 300)
+        {
+            if (buffer.Array != null)
+            {
+                player.Session.SendUDP(buffer.Array, NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
+            }
+        }
+        // [300 ~ ] : RUDP (ReliableOrdered)
+        else
+        {
+            if (buffer.Array != null)
+            {
+                player.Session.SendUDP(buffer.Array, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
+            }
+        }
+    }
 
     private void SendPacket<T>(Player player, T packet) where T : BasePacket
     {
         if (player.Session == null) return;
 
-        int id = (int)packet.Id;
-
-        // [100 ~ 199] : TCP
-        if (id < 200)
+        var segment = PacketManager.Instance.Serialize(packet);
+        
+        if (segment.Array == null) 
         {
-            player.Session.Send(PacketManager.Instance.Serialize(packet));
+            LogManager.Error($"Failed to serialize packet: {packet.Id}");
+            return; 
         }
-        // [200 ~ 299] : UDP
-        else if (id < 300)
-        {
-            player.Session.SendUDP(PacketManager.Instance.Serialize(packet), NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
-        }
-        // [300 ~ ] : RUDP
-        else
-        {
-            // TCP처럼 안정적이지만 UDP 기반 (채팅, 스킬 사용 등)
-            player.Session.SendUDP(PacketManager.Instance.Serialize(packet), NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
-        }
+        
+        SendBytes(player, segment, (ushort)packet.Id);
     }
 
     private void Broadcast<T>(float x, float z, T packet) where T : BasePacket
     {
+        var segment = PacketManager.Instance.Serialize(packet);
+        var packetId = packet.Id;
+        
         List<Cell> zones = GetNearCells(x, z);
 
         foreach (Cell cell in zones)
         {
             foreach (Player player in cell.Players)
             {
-                SendPacket(player, packet);
+                // SendPacket(player, packet);
+                SendBytes(player, segment, (ushort)packetId);
             }
         }
     }
 
     public void BroadcastExcept<T>(int playerId, T packet) where T : BasePacket
     {
+        var segment = PacketManager.Instance.Serialize(packet);
+        var packetId = packet.Id;
+        
         _players.TryGetValue(playerId, out var myPlayer);
 
         if (myPlayer != null)
@@ -167,7 +192,8 @@ public class GameRoom
                 foreach (Player player in cell.Players)
                 {
                     if (player.Id == playerId) continue;
-                    SendPacket(player, packet);
+                    // SendPacket(player, packet);
+                    SendBytes(player, segment, (ushort)packetId);
                 }
             }
         }
@@ -181,9 +207,12 @@ public class GameRoom
 
     public void BroadcastAll<T>(T packet) where T : BasePacket
     {
+        var segment = PacketManager.Instance.Serialize(packet);
+        var packetId = packet.Id;
         foreach (Player p in _players.Values)
         {
-            SendPacket(p, packet);
+            // SendPacket(p, packet);
+            SendBytes(p, segment, (ushort)packetId);
         }
     }
 
@@ -206,12 +235,15 @@ public class GameRoom
             
         Cell cell = GetCell(newPlayer.X, newPlayer.Z);
         cell.Add(newPlayer);
-            
-        LogManager.Info($"Player {newPlayer.Id} entered. Pos({newPlayer.X:F1},{newPlayer.Z:F1}) Cell({GetCellIndex(newPlayer.X, newPlayer.Z)})");
-            
-        // 1. 내 주변 유저 정보 수집 (AOI 적용)
+
+        if (_players.Count % 100 == 0)
+        {
+            LogManager.Info($"Player enter count: {_players.Count}");
+        }
+
         List<PlayerInfo> otherPlayerList = new List<PlayerInfo>();
             
+        // TODO: 너무 많음. 데이터 너무 커짐 S_LoginRes를 여러번 보내던가 cell 최대 인원을 잡던가
         foreach(Cell nearCell in GetNearCells(newPlayer.X, newPlayer.Z))
         {
             foreach(Player p in nearCell.Players)
@@ -331,8 +363,8 @@ public class GameRoom
             string content = packet.Msg.Substring(3); // "/g " 제거
             string pubMsg = $"{player.Name}:{content}";
             
-            // Redis로 발행 (내 서버 포함, 모든 서버가 듣게 됨)
-            RedisManager.Publish("GlobalChat", pubMsg);
+            // Redis로 발행
+            _ = RedisManager.PublishAsync("GlobalChat", pubMsg);
             
             LogManager.Info($"[Global Chat] {pubMsg}");
         }
@@ -353,7 +385,9 @@ public class GameRoom
     private void InitiateHandover(Player player, ServerConfig.ZoneInfo targetZone, float nextX, float nextZ)
     {
         // 1. 중복 처리 방지 (간단 체크)
-        if (player.Session == null) return;
+        if (player.Session == null || player.IsTransferring) return;
+        
+        player.IsTransferring = true;
 
         // Console.WriteLine($"[Handover] {player.Name} leaving to Zone {targetZone.ZoneId} ({targetZone.Port})");
 
@@ -364,22 +398,39 @@ public class GameRoom
         PlayerState state = player.GetState(token);
         state.X = nextX; // 다음 서버에서의 시작 위치 설정
         state.Z = nextZ;
-    
-        RedisManager.SavePlayerState(player.Session.AuthToken, state);
+        string authToken = player.Session.AuthToken;
 
-        // 4. 클라에게 명령 전송
+        Task.Run(async () =>
+        {
+            await RedisManager.SavePlayerStateAsync(authToken, state);
+
+            // 4. 저장이 끝나면 "마무리 작업"을 다시 GameRoom 큐에 넣음
+            Push(new HandoverCompleteJob
+            {
+                PlayerId = player.Id,
+                TargetZone = targetZone,
+                TransferToken = token
+            });
+        });
+    }
+    
+    public void FinishHandover(int playerId, ServerConfig.ZoneInfo targetZone, string token)
+    {
+        // 플레이어가 그사이 나갔을 수도 있으니 체크
+        if (!_players.TryGetValue(playerId, out Player player)) return;
+    
+        // 패킷 전송
         S_TransferReq transferPacket = new S_TransferReq()
         {
-            TargetIp = targetZone.IpAddress, // Config에서 읽은 값 (127.0.0.1)
-            TargetPort = targetZone.Port,    // Config에서 읽은 값 (12346 등)
+            TargetIp = targetZone.IpAddress,
+            TargetPort = targetZone.Port,
             TransferToken = token
         };
 
-        byte[] data = PacketManager.Instance.Serialize(transferPacket);
+        var data = PacketManager.Instance.Serialize(transferPacket);
         player.Session.Send(data);
 
-        // 5. 서버에서 유저 제거 (즉시 퇴장 처리)
-        // LeaveGame을 호출하면 브로드캐스트도 됨
+        // 진짜 퇴장 처리
         Leave(player.Id);
     }
     

@@ -1,13 +1,19 @@
-﻿using System.Buffers.Binary;
+﻿using System.Buffers;
+using System.Buffers.Binary;
 using Common.Packet;
 using MemoryPack;
 using Server.Core;
+using Server.Data;
+using Server.Utils;
 
 namespace Server.Packet;
 
 public class PacketManager
 {
     public static PacketManager Instance { get; } = new();
+    
+    private ThreadLocal<ArrayBufferWriter<byte>> _threadLocalWriter = 
+        new(() => new ArrayBufferWriter<byte>(65535));
 
     public PacketManager()
     {
@@ -61,25 +67,41 @@ public class PacketManager
         }
     }
     
-    public byte[] Serialize<T>(T packet) where T : BasePacket
+    public ArraySegment<byte> Serialize<T>(T packet) where T : BasePacket
     {
-        byte[] bodyBytes = MemoryPackSerializer.Serialize(packet);
-            
-        // 전체 크기
-        ushort size = (ushort)(4 + bodyBytes.Length);
-        ushort packetId = (ushort)packet.Id;
+        ArrayBufferWriter<byte> writer = _threadLocalWriter.Value;
+        writer.Clear(); 
         
-        byte[] finalBuffer = new byte[size];
+        var headerSpan = writer.GetSpan(4);
+        headerSpan.Slice(0, 4).Clear(); 
+        writer.Advance(4);
 
-        // Header
-        // [Size (2byte)]
-        BitConverter.TryWriteBytes(new Span<byte>(finalBuffer, 0, 2), size);
-        // [Id (2byte)]
-        BitConverter.TryWriteBytes(new Span<byte>(finalBuffer, 2, 2), packetId);
+        // Body 직렬화
+        MemoryPackSerializer.Serialize(writer, packet);
 
-        // Body
-        Array.Copy(bodyBytes, 0, finalBuffer, 4, bodyBytes.Length);
+        // 전체 데이터(헤더+바디)의 ReadOnlySpan 가져오기
+        ReadOnlySpan<byte> totalSpan = writer.WrittenSpan;
+        
+        if (totalSpan.Length > ushort.MaxValue)
+        {
+            LogManager.Error($"[PacketManager] Packet Size Overflow! Id: {packet.Id}, Size: {totalSpan.Length}");
+            return null;
+        }
+        
+        ushort size = (ushort)totalSpan.Length;
+        ushort packetId = (ushort)packet.Id;
 
-        return finalBuffer;
+        // 전송용 버퍼를 ArrayPool에서 대여
+        byte[] sendBuffer = ArrayPool<byte>.Shared.Rent(size);
+        
+        // 작업 공간의 데이터를 전송용 버퍼로 복사
+        totalSpan.CopyTo(sendBuffer);
+        
+        Span<byte> sendSpan = new Span<byte>(sendBuffer, 0, size);
+        
+        BinaryPrimitives.WriteUInt16LittleEndian(sendSpan.Slice(0, 2), size);
+        BinaryPrimitives.WriteUInt16LittleEndian(sendSpan.Slice(2, 2), packetId);
+        
+        return new ArraySegment<byte>(sendBuffer, 0, size);
     }
 }

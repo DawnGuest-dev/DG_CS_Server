@@ -30,66 +30,55 @@ public static class RedisManager
             throw;
         }
     }
-    
-    public static bool SetString(string key, string value, TimeSpan? expiry = null)
+
+    public static async Task SetStringAsync(string key, string value, TimeSpan? expiry = null)
     {
-        if (_db == null) return false;
-        
+        if (_db == null) return;
         if (expiry.HasValue)
         {
-            return _db.StringSet(key, value, expiry.Value);
+            await _db.StringSetAsync((RedisKey)key, (RedisValue)value, expiry.Value);
         }
-        
-        return _db.StringSet(key, value);
+        else
+        {
+            await _db.StringSetAsync((RedisKey)key, (RedisValue)value);
+        }
     }
 
-    public static string GetString(string key)
+    public static async Task<string> GetStringAsync(string key)
     {
         if (_db == null) return null;
-        return _db.StringGet(key);
+        // RedisValue는 string으로 암시적 형변환됨
+        return await _db.StringGetAsync(key);
     }
-
-    public static bool DeleteKey(string key)
+    
+    public static async Task<bool> DeleteKeyAsync(string key)
     {
         if (_db == null) return false;
-        return _db.KeyDelete(key);
+        return await _db.KeyDeleteAsync(key);
     }
 
-    public static void Publish(string channel, string message)
+    public static async Task PublishAsync(string channel, string message)
     {
         if (_sub == null) return;
-        
-        _sub.Publish(channel, message);
+        await _sub.PublishAsync(channel, message);
     }
 
-    public static void Subscribe(string channel, Action<string> callback)
-    {
-        if (_sub == null) return;
-
-        _sub.Subscribe(channel, (channel, redisValue) =>
-        {
-            callback(redisValue);
-        });
-        
-        LogManager.Info($"Subscribe to {channel}");
-    }
-
-    public static void SavePlayerState(string authToken, PlayerState state)
+    public static async Task SavePlayerStateAsync(string authToken, PlayerState state)
     {
         string json = JsonSerializer.Serialize(state);
-        SetString($"PlayerState:{authToken}", json, TimeSpan.FromMinutes(10)); // Test: 10Min
+        
+        await SetStringAsync($"PlayerState:{authToken}", json, TimeSpan.FromMinutes(10)); 
     }
 
-    public static PlayerState LoadPlayerState(string authToken)
+    public static async Task<PlayerState> LoadPlayerStateAsync(string authToken)
     {
-        // Key를 저장할 때와 똑같이 맞춰야 합니다.
-        // SavePlayerState 할 때도 $"PlayerState:{authToken}"으로 저장했는지 확인 필요!
         string key = $"PlayerState:{authToken}";
         
-        string json = GetString(key);
+        // 여기서 네트워크 대기 발생 -> 스레드 해방 (Non-blocking)
+        string json = await GetStringAsync(key);
+        
         if (string.IsNullOrEmpty(json)) return null;
         
-        // JSON 역직렬화
         try 
         {
             return JsonSerializer.Deserialize<PlayerState>(json);
@@ -98,6 +87,18 @@ public static class RedisManager
         {
             return null;
         }
+    }
+
+    public static void Subscribe(string channel, Action<string> callback)
+    {
+        if (_sub == null) return;
+
+        _sub.Subscribe(channel, (redisChannel, redisValue) =>
+        {
+            callback(redisValue);
+        });
+        
+        LogManager.Info($"Subscribe to {channel}");
     }
     
     

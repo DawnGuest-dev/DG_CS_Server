@@ -8,12 +8,9 @@ public class RecvBuffer
     private int _readPos; // 시작점
     private int _writePos; // 끝 점
     private int _capacity;
-    private int _bufferSize;
 
     public RecvBuffer(int bufferSize)
     {
-        _bufferSize = bufferSize;
-        
         // 시스템 풀에서 메모리를 빌려옴
         _buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
         _capacity = _buffer.Length;
@@ -47,9 +44,13 @@ public class RecvBuffer
         else
         {
             // 남은 데이터가 있으면 시작 지점으로 복사
-            Array.Copy(_buffer, _readPos, _buffer, 0, dataSize);
-            _readPos = 0;
-            _writePos = dataSize;
+            // 매번 말고 용량이 부족할 때만 복사 (40% 미만)
+            if (FreeSize < (_capacity * 0.4))
+            {
+                Array.Copy(_buffer, _readPos, _buffer, 0, dataSize);
+                _readPos = 0;
+                _writePos = dataSize;
+            }
         }
     }
 

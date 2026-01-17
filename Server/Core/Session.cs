@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Buffers;
+using System.Net;
 using System.Net.Sockets;
 using LiteNetLib;
 using Server.Game;
@@ -56,11 +57,6 @@ public abstract class Session
             }
         }
     }
-
-    public void Send(byte[] buffer)
-    {
-        Send(new ArraySegment<byte>(buffer, 0, buffer.Length));
-    }
     
     private void RegisterSend()
     {
@@ -97,6 +93,15 @@ public abstract class Session
         {
             if (args.SocketError == SocketError.Success)
             {
+                foreach (var buffer in _pendingList)
+                {
+                    if (buffer.Array != null)
+                    {
+                        // 빌린 배열 반납
+                        ArrayPool<byte>.Shared.Return(buffer.Array);
+                    }
+                }
+                
                 _sendArgs.BufferList = null;
                 _pendingList.Clear();
 
