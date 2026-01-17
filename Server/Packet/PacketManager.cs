@@ -3,8 +3,11 @@ using System.Buffers.Binary;
 using Common.Packet;
 using MemoryPack;
 using Server.Core;
-using Server.Data;
 using Server.Utils;
+using Google.Protobuf;
+using Google.FlatBuffers;
+using Protocol;
+using C_LoginReq = Protocol.C_LoginReq;
 
 namespace Server.Packet;
 
@@ -20,88 +23,78 @@ public class PacketManager
         Register();
     }
     
-    private Dictionary<ushort, Action<Session, ReadOnlySpan<byte>>> _onRecv = new();
-    private Dictionary<ushort, Action<Session, BasePacket>> _handler = new();
+    // Protobuf 핸들러
+    private Dictionary<ushort, Action<Session, IMessage>> _protoHandlers = new();
+    
+    // FlatBuffers 핸들러
+    private Dictionary<ushort, Action<Session, ArraySegment<byte>>> _flatHandlers = new();
+
+    // Protobuf Parser
+    private Dictionary<ushort, MessageParser> _protoParsers = new();
+    
 
     private void Register()
     {
-        _onRecv.Add((ushort)PacketId.C_LoginReq, MakePacket<C_LoginReq>);
-        _handler.Add((ushort)PacketId.C_LoginReq, PacketHandler.C_LoginReq);
-
-        _onRecv.Add((ushort)PacketId.C_Move, MakePacket<C_Move>);
-        _handler.Add((ushort)PacketId.C_Move, PacketHandler.C_MoveReq); // 이름 주의 (MoveReq)
-
-        _onRecv.Add((ushort)PacketId.C_Chat, MakePacket<C_Chat>);
-        _handler.Add((ushort)PacketId.C_Chat, PacketHandler.C_ChatReq);
-    }
-    
-    private void MakePacket<T>(Session session, ReadOnlySpan<byte> bodySpan) where T : BasePacket
-    {
-        // [최적화 3] MemoryPack은 Span을 직접 받아 역직렬화 가능 (메모리 할당 없음)
-        var packet = MemoryPackSerializer.Deserialize<T>(bodySpan);
-            
-        if (_handler.TryGetValue((ushort)packet.Id, out var action))
-        {
-            action.Invoke(session, packet);
-        }
+        // _protoHandlers.Add((ushort)MsgId.IdCLoginReq, PacketHandler.C_LoginReq);
+        // _protoParsers.Add((ushort)MsgId.IdCLoginReq, C_LoginReq.Parser);
+        //
+        // _flatHandlers.Add((ushort)MsgId.IdCMove, PacketHandler.C_Move);
     }
 
     public void OnRecvPacket(Session session, ArraySegment<byte> buffer)
     {
-        // ArraySegment -> ReadOnlySpan 변환 (비용 0, 참조만 가져옴)
         ReadOnlySpan<byte> span = buffer.AsSpan();
 
-        // 헤더 크기 체크
+        // 헤더 체크 (Size:2 + ID:2 = 4 bytes)
         if (span.Length < 4) return;
 
-        // BitConverter 대신 BinaryPrimitives 사용 (CPU 친화적)
+        // ID 추출 (BinaryPrimitives 사용)
         ushort id = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(2));
-
-        if (_onRecv.TryGetValue(id, out var action))
+        
+        // Protobuf 처리
+        if (_protoHandlers.ContainsKey(id))
         {
-            // Array.Copy 제거
-            // 헤더(4바이트)를 제외한 Body 부분만 Slice
+            // Body만 잘라내기
             var bodySpan = span.Slice(4);
             
-            action.Invoke(session, bodySpan);
+            if (_protoParsers.TryGetValue(id, out var parser))
+            {
+                IMessage message = parser.ParseFrom(bodySpan);
+                _protoHandlers[id]?.Invoke(session, message);
+            }
+        }
+        // FlatBuffers 처리
+        else if (_flatHandlers.ContainsKey(id))
+        {
+            var bodySegment = new ArraySegment<byte>(buffer.Array, buffer.Offset + 4, buffer.Count - 4);
+            _flatHandlers[id]?.Invoke(session, bodySegment);
+        }
+        else
+        {
+            LogManager.Error($"Unknown Packet ID: {id}");
         }
     }
     
-    public ArraySegment<byte> Serialize<T>(T packet) where T : BasePacket
+    public ArraySegment<byte> SerializeProto<T>(ushort msgId, T packet) where T : IMessage
     {
         ArrayBufferWriter<byte> writer = _threadLocalWriter.Value;
-        writer.Clear(); 
+        writer.Clear();
         
-        var headerSpan = writer.GetSpan(4);
-        headerSpan.Slice(0, 4).Clear(); 
+        writer.GetSpan(4);
         writer.Advance(4);
-
-        // Body 직렬화
-        MemoryPackSerializer.Serialize(writer, packet);
-
-        // 전체 데이터(헤더+바디)의 ReadOnlySpan 가져오기
+        
+        packet.WriteTo(writer);
+        
         ReadOnlySpan<byte> totalSpan = writer.WrittenSpan;
-        
-        if (totalSpan.Length > ushort.MaxValue)
-        {
-            LogManager.Error($"[PacketManager] Packet Size Overflow! Id: {packet.Id}, Size: {totalSpan.Length}");
-            return null;
-        }
-        
         ushort size = (ushort)totalSpan.Length;
-        ushort packetId = (ushort)packet.Id;
-
-        // 전송용 버퍼를 ArrayPool에서 대여
-        byte[] sendBuffer = ArrayPool<byte>.Shared.Rent(size);
         
-        // 작업 공간의 데이터를 전송용 버퍼로 복사
+        byte[] sendBuffer = ArrayPool<byte>.Shared.Rent(size);
         totalSpan.CopyTo(sendBuffer);
         
         Span<byte> sendSpan = new Span<byte>(sendBuffer, 0, size);
-        
         BinaryPrimitives.WriteUInt16LittleEndian(sendSpan.Slice(0, 2), size);
-        BinaryPrimitives.WriteUInt16LittleEndian(sendSpan.Slice(2, 2), packetId);
-        
+        BinaryPrimitives.WriteUInt16LittleEndian(sendSpan.Slice(2, 2), msgId);
+
         return new ArraySegment<byte>(sendBuffer, 0, size);
     }
 }

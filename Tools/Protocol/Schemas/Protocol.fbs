@@ -1,4 +1,4 @@
-﻿namespace Common.Packet;
+﻿namespace Protocol;
 
 struct Vec3 {
   x:float;

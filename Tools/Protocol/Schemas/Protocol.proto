@@ -1,7 +1,7 @@
 ﻿syntax = "proto3";
 
 package Protocol;
-option csharp_namespace = "Common.Packet";
+option csharp_namespace = "Protocol";
 
 // [수정됨] 이름 충돌 방지를 위해 접두어 'Id_' 추가
 enum MsgId {

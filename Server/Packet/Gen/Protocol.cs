@@ -9,7 +9,7 @@ using pb = global::Google.Protobuf;
 using pbc = global::Google.Protobuf.Collections;
 using pbr = global::Google.Protobuf.Reflection;
 using scg = global::System.Collections.Generic;
-namespace Common.Packet {
+namespace Protocol {
 
   /// <summary>Holder for reflection information generated from Protocol.proto</summary>
   public static partial class ProtocolReflection {
@@ -40,19 +40,19 @@ namespace Common.Packet {
             "X0xvZ2luUmVxEGUSEQoNSWRfU19Mb2dpblJlcxBmEhQKEElkX1NfVHJhbnNm",
             "ZXJSZXEQZxIXChNJZF9TX09uUGxheWVySm9pbmVkEGgSFQoRSWRfU19PblBs",
             "YXllckxlZnQQaRIOCglJZF9DX0NoYXQQrQISDgoJSWRfU19DaGF0EK4CEg4K",
-            "CUlkX0NfTW92ZRDJARIOCglJZF9TX01vdmUQygFCEKoCDUNvbW1vbi5QYWNr",
-            "ZXRiBnByb3RvMw=="));
+            "CUlkX0NfTW92ZRDJARIOCglJZF9TX01vdmUQygFCC6oCCFByb3RvY29sYgZw",
+            "cm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
-          new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Common.Packet.MsgId), }, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Common.Packet.PlayerInfo), global::Common.Packet.PlayerInfo.Parser, new[]{ "PlayerId", "PosX", "PosY", "PosZ" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Common.Packet.C_LoginReq), global::Common.Packet.C_LoginReq.Parser, new[]{ "AuthToken", "TransferToken" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Common.Packet.S_LoginRes), global::Common.Packet.S_LoginRes.Parser, new[]{ "Success", "MySessionId", "SpawnPosX", "SpawnPosY", "SpawnPosZ", "OtherPlayerInfos" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Common.Packet.S_TransferReq), global::Common.Packet.S_TransferReq.Parser, new[]{ "TargetIp", "TargetPort", "TransferToken" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Common.Packet.S_OnPlayerJoined), global::Common.Packet.S_OnPlayerJoined.Parser, new[]{ "PlayerInfo" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Common.Packet.S_OnPlayerLeft), global::Common.Packet.S_OnPlayerLeft.Parser, new[]{ "PlayerId" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Common.Packet.C_Chat), global::Common.Packet.C_Chat.Parser, new[]{ "Msg" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Common.Packet.S_Chat), global::Common.Packet.S_Chat.Parser, new[]{ "PlayerId", "Msg" }, null, null, null, null)
+          new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Protocol.MsgId), }, null, new pbr::GeneratedClrTypeInfo[] {
+            new pbr::GeneratedClrTypeInfo(typeof(global::Protocol.PlayerInfo), global::Protocol.PlayerInfo.Parser, new[]{ "PlayerId", "PosX", "PosY", "PosZ" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Protocol.C_LoginReq), global::Protocol.C_LoginReq.Parser, new[]{ "AuthToken", "TransferToken" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Protocol.S_LoginRes), global::Protocol.S_LoginRes.Parser, new[]{ "Success", "MySessionId", "SpawnPosX", "SpawnPosY", "SpawnPosZ", "OtherPlayerInfos" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Protocol.S_TransferReq), global::Protocol.S_TransferReq.Parser, new[]{ "TargetIp", "TargetPort", "TransferToken" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Protocol.S_OnPlayerJoined), global::Protocol.S_OnPlayerJoined.Parser, new[]{ "PlayerInfo" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Protocol.S_OnPlayerLeft), global::Protocol.S_OnPlayerLeft.Parser, new[]{ "PlayerId" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Protocol.C_Chat), global::Protocol.C_Chat.Parser, new[]{ "Msg" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Protocol.S_Chat), global::Protocol.S_Chat.Parser, new[]{ "PlayerId", "Msg" }, null, null, null, null)
           }));
     }
     #endregion
@@ -93,7 +93,7 @@ namespace Common.Packet {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Common.Packet.ProtocolReflection.Descriptor.MessageTypes[0]; }
+      get { return global::Protocol.ProtocolReflection.Descriptor.MessageTypes[0]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -402,7 +402,7 @@ namespace Common.Packet {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Common.Packet.ProtocolReflection.Descriptor.MessageTypes[1]; }
+      get { return global::Protocol.ProtocolReflection.Descriptor.MessageTypes[1]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -637,7 +637,7 @@ namespace Common.Packet {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Common.Packet.ProtocolReflection.Descriptor.MessageTypes[2]; }
+      get { return global::Protocol.ProtocolReflection.Descriptor.MessageTypes[2]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -734,12 +734,12 @@ namespace Common.Packet {
 
     /// <summary>Field number for the "OtherPlayerInfos" field.</summary>
     public const int OtherPlayerInfosFieldNumber = 6;
-    private static readonly pb::FieldCodec<global::Common.Packet.PlayerInfo> _repeated_otherPlayerInfos_codec
-        = pb::FieldCodec.ForMessage(50, global::Common.Packet.PlayerInfo.Parser);
-    private readonly pbc::RepeatedField<global::Common.Packet.PlayerInfo> otherPlayerInfos_ = new pbc::RepeatedField<global::Common.Packet.PlayerInfo>();
+    private static readonly pb::FieldCodec<global::Protocol.PlayerInfo> _repeated_otherPlayerInfos_codec
+        = pb::FieldCodec.ForMessage(50, global::Protocol.PlayerInfo.Parser);
+    private readonly pbc::RepeatedField<global::Protocol.PlayerInfo> otherPlayerInfos_ = new pbc::RepeatedField<global::Protocol.PlayerInfo>();
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pbc::RepeatedField<global::Common.Packet.PlayerInfo> OtherPlayerInfos {
+    public pbc::RepeatedField<global::Protocol.PlayerInfo> OtherPlayerInfos {
       get { return otherPlayerInfos_; }
     }
 
@@ -1009,7 +1009,7 @@ namespace Common.Packet {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Common.Packet.ProtocolReflection.Descriptor.MessageTypes[3]; }
+      get { return global::Protocol.ProtocolReflection.Descriptor.MessageTypes[3]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1281,7 +1281,7 @@ namespace Common.Packet {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Common.Packet.ProtocolReflection.Descriptor.MessageTypes[4]; }
+      get { return global::Protocol.ProtocolReflection.Descriptor.MessageTypes[4]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1313,10 +1313,10 @@ namespace Common.Packet {
 
     /// <summary>Field number for the "PlayerInfo" field.</summary>
     public const int PlayerInfoFieldNumber = 1;
-    private global::Common.Packet.PlayerInfo playerInfo_;
+    private global::Protocol.PlayerInfo playerInfo_;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public global::Common.Packet.PlayerInfo PlayerInfo {
+    public global::Protocol.PlayerInfo PlayerInfo {
       get { return playerInfo_; }
       set {
         playerInfo_ = value;
@@ -1410,7 +1410,7 @@ namespace Common.Packet {
       }
       if (other.playerInfo_ != null) {
         if (playerInfo_ == null) {
-          PlayerInfo = new global::Common.Packet.PlayerInfo();
+          PlayerInfo = new global::Protocol.PlayerInfo();
         }
         PlayerInfo.MergeFrom(other.PlayerInfo);
       }
@@ -1435,7 +1435,7 @@ namespace Common.Packet {
             break;
           case 10: {
             if (playerInfo_ == null) {
-              PlayerInfo = new global::Common.Packet.PlayerInfo();
+              PlayerInfo = new global::Protocol.PlayerInfo();
             }
             input.ReadMessage(PlayerInfo);
             break;
@@ -1461,7 +1461,7 @@ namespace Common.Packet {
             break;
           case 10: {
             if (playerInfo_ == null) {
-              PlayerInfo = new global::Common.Packet.PlayerInfo();
+              PlayerInfo = new global::Protocol.PlayerInfo();
             }
             input.ReadMessage(PlayerInfo);
             break;
@@ -1488,7 +1488,7 @@ namespace Common.Packet {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Common.Packet.ProtocolReflection.Descriptor.MessageTypes[5]; }
+      get { return global::Protocol.ProtocolReflection.Descriptor.MessageTypes[5]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1686,7 +1686,7 @@ namespace Common.Packet {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Common.Packet.ProtocolReflection.Descriptor.MessageTypes[6]; }
+      get { return global::Protocol.ProtocolReflection.Descriptor.MessageTypes[6]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1884,7 +1884,7 @@ namespace Common.Packet {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Common.Packet.ProtocolReflection.Descriptor.MessageTypes[7]; }
+      get { return global::Protocol.ProtocolReflection.Descriptor.MessageTypes[7]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
