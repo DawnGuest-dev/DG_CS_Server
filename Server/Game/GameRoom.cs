@@ -133,7 +133,7 @@ public class GameRoom
         {
             if (buffer.Array != null)
             {
-                player.Session.SendUDP(buffer.Array, NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
+                player.Session.SendUDP(buffer, NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
             }
         }
         // [300 ~ ] : RUDP (ReliableOrdered)
@@ -141,7 +141,7 @@ public class GameRoom
         {
             if (buffer.Array != null)
             {
-                player.Session.SendUDP(buffer.Array, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
+                player.Session.SendUDP(buffer, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
             }
         }
     }

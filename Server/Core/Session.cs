@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
 using LiteNetLib;
@@ -49,6 +50,14 @@ public abstract class Session
     {
         lock (_lock)
         {
+            if (_disconnected == 1)
+            {
+                if (buffer.Array != null)
+                    ArrayPool<byte>.Shared.Return(buffer.Array);
+                
+                return;
+            }
+
             _sendQueue.Enqueue(buffer);
 
             if (_pending == false)
@@ -60,6 +69,8 @@ public abstract class Session
     
     private void RegisterSend()
     {
+        if (_disconnected == 1) return;
+        
         _pending = true;
         
         _pendingList.Clear();
@@ -82,8 +93,8 @@ public abstract class Session
         }
         catch (Exception e)
         {
+            LogManager.Exception(e, $"SendAsync Error: {e}");
             Disconnect();
-            // Console.WriteLine($"Disconnect: {e.Message}");
         }
     }
 
@@ -91,20 +102,23 @@ public abstract class Session
     {
         lock (_lock)
         {
-            if (args.SocketError == SocketError.Success)
+            if (args.BufferList != null)
             {
                 foreach (var buffer in _pendingList)
                 {
                     if (buffer.Array != null)
                     {
-                        // 빌린 배열 반납
                         ArrayPool<byte>.Shared.Return(buffer.Array);
                     }
                 }
-                
-                _sendArgs.BufferList = null;
-                _pendingList.Clear();
-
+            }
+            
+            _sendArgs.BufferList = null;
+            _pendingList.Clear();
+            
+            // 전송 성공 시에만 다음 큐 처리
+            if (args.SocketError == SocketError.Success)
+            {
                 if (_sendQueue.Count > 0)
                 {
                     RegisterSend();
@@ -126,6 +140,16 @@ public abstract class Session
         if (Interlocked.Exchange(ref _disconnected, 1) == 1) return;
         
         OnDisconnected(_socket.RemoteEndPoint);
+        
+        lock (_lock)
+        {
+            while (_sendQueue.Count > 0)
+            {
+                var buff = _sendQueue.Dequeue();
+                if (buff.Array != null)
+                    ArrayPool<byte>.Shared.Return(buff.Array);
+            }
+        }
 
         // RecvBuffer 메모리 반납
         if (_recvBuffer != null)
@@ -133,10 +157,18 @@ public abstract class Session
             _recvBuffer.Dispose();
             _recvBuffer = null;
         }
-        
-        _socket.Shutdown(SocketShutdown.Both);
-        _socket.Close();
-        
+
+        try
+        {
+            _socket.Shutdown(SocketShutdown.Both);
+            _socket.Close();
+        }
+        catch
+        {
+            // ignored
+        }
+
+
         _pendingList.Clear();
     }
 
@@ -209,7 +241,7 @@ public abstract class Session
             if (buffer.Count < 4)
                 break;
             
-            ushort dataSize = BitConverter.ToUInt16(buffer.Array, buffer.Offset);
+            ushort dataSize = BinaryPrimitives.ReadUInt16LittleEndian(buffer.AsSpan());
             
             if (buffer.Count < dataSize)
                 break;
@@ -230,11 +262,11 @@ public abstract class Session
     public abstract void OnDisconnected(EndPoint endPoint);
     
     // UDP
-    public void SendUDP(byte[] data, byte channel, DeliveryMethod deliveryMethod)
+    public void SendUDP(ArraySegment<byte> buffer, byte channel, DeliveryMethod deliveryMethod)
     {
         if (UdpPeer != null)
         {
-            UdpPeer.Send(data, channel, deliveryMethod);
+            UdpPeer.Send(buffer.Array, buffer.Offset, buffer.Count, channel, deliveryMethod);
         }
     }
     
