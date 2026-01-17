@@ -10,7 +10,7 @@ public interface IJob
 public static class JobPool<T> where T : IJob, new()
 {
     // 멀티쓰레드 환경에서 안전하게 객체를 보관
-    private static readonly ConcurrentBag<T> _pool = new ConcurrentBag<T>();
+    private static readonly ConcurrentBag<T> _pool = new();
     
     public static T Get()
     {

@@ -16,12 +16,15 @@ public class Listener
             
         _listenSocket.Bind(endPoint);
             
-        _listenSocket.Listen(100);
+        _listenSocket.Listen(1000);
+        
+        for (int i = 0; i < 20; i++)
+        {
+            SocketAsyncEventArgs args = new SocketAsyncEventArgs();
+            args.Completed += OnAcceptCompeleted;
+            RegisterAccept(args);
+        }
             
-        SocketAsyncEventArgs args = new SocketAsyncEventArgs();
-        args.Completed += OnAcceptCompeleted;
-
-        RegisterAccept(args);
     }
 
     private void RegisterAccept(SocketAsyncEventArgs args)
