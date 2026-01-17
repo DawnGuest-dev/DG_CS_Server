@@ -1,12 +1,12 @@
-﻿using Common.Packet;
+﻿using Protocol;
 using Server.Core;
 
 namespace Server.Game.Job;
 
 public class ChatJob : IJob
 {
-    public Player Player;
-    public C_Chat Packet;
+    public Player Player { get; set; }
+    public C_Chat Packet { get; set; }
 
     public void Execute()
     {
@@ -17,6 +17,7 @@ public class ChatJob : IJob
 
         Player = null;
         Packet = null;
+        
         JobPool<ChatJob>.Return(this);
     }
 }

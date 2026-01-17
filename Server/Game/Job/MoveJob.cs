@@ -1,24 +1,25 @@
-﻿using Common.Packet;
-using Server.Core;
+﻿using Server.Core;
+using Server.Game;
 
 namespace Server.Game.Job;
 
 public class MoveJob : IJob
 {
-    public Player Player;
-    public C_Move Packet;
+    public Player Player { get; set; }
+    
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Z { get; set; }
 
     public void Execute()
     {
         if (Player != null && Player.Session != null)
         {
-            GameRoom.Instance.HandleMove(Player, Packet);
+            // GameRoom에 데이터 전달
+            GameRoom.Instance.HandleMove(Player, X, Y, Z);
         }
 
-        // 풀 반납
         Player = null;
-        Packet = null; 
-            
         JobPool<MoveJob>.Return(this);
     }
 }

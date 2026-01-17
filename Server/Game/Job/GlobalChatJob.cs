@@ -1,4 +1,4 @@
-﻿using Common.Packet;
+﻿using Protocol;
 using Server.Core;
 
 namespace Server.Game.Job;
@@ -23,7 +23,7 @@ public class GlobalChatJob : IJob
                 Msg = $"[Global] {senderName}: {message}"
             };
 
-            GameRoom.Instance.BroadcastAll(packet);
+            GameRoom.Instance.BroadcastAll(MsgId.IdSChat, packet);
         }
 
         // [중요] 사용 후 반납

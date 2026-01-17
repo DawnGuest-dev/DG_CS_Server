@@ -1,6 +1,8 @@
 ﻿using Common;
-using Common.Packet;
+using Google.FlatBuffers;
+using Google.Protobuf;
 using LiteNetLib;
+using Protocol;
 using Server.Core;
 using Server.Data;
 using Server.DB;
@@ -144,42 +146,37 @@ public class GameRoom
         }
     }
 
-    private void SendPacket<T>(Player player, T packet) where T : BasePacket
+    private void SendPacket<T>(Player player, MsgId msgId, T packet) where T : IMessage
     {
         if (player.Session == null) return;
 
-        var segment = PacketManager.Instance.Serialize(packet);
+        ushort id = (ushort)msgId;
         
-        if (segment.Array == null) 
-        {
-            LogManager.Error($"Failed to serialize packet: {packet.Id}");
-            return; 
-        }
-        
-        SendBytes(player, segment, (ushort)packet.Id);
+        // PacketManager의 SerializeProto 호출
+        var segment = PacketManager.Instance.SerializeProto(id, packet);
+
+        SendBytes(player, segment, id);
     }
 
-    private void Broadcast<T>(float x, float z, T packet) where T : BasePacket
+    private void Broadcast<T>(float x, float z, MsgId msgId, T packet) where T : IMessage
     {
-        var segment = PacketManager.Instance.Serialize(packet);
-        var packetId = packet.Id;
+        ushort id = (ushort)msgId;
+        var segment = PacketManager.Instance.SerializeProto(id, packet);
         
         List<Cell> zones = GetNearCells(x, z);
-
         foreach (Cell cell in zones)
         {
             foreach (Player player in cell.Players)
             {
-                // SendPacket(player, packet);
-                SendBytes(player, segment, (ushort)packetId);
+                SendBytes(player, segment, id);
             }
         }
     }
 
-    public void BroadcastExcept<T>(int playerId, T packet) where T : BasePacket
+    public void BroadcastExcept<T>(int playerId, MsgId msgId, T packet) where T : IMessage
     {
-        var segment = PacketManager.Instance.Serialize(packet);
-        var packetId = packet.Id;
+        ushort id = (ushort)msgId;
+        var segment = PacketManager.Instance.SerializeProto(id, packet);
         
         _players.TryGetValue(playerId, out var myPlayer);
 
@@ -192,27 +189,27 @@ public class GameRoom
                 foreach (Player player in cell.Players)
                 {
                     if (player.Id == playerId) continue;
-                    // SendPacket(player, packet);
-                    SendBytes(player, segment, (ushort)packetId);
+                    SendBytes(player, segment, id);
                 }
             }
         }
     }
     
-    public void BroadcastCell<T>(int playerId, T packet) where T : BasePacket
+    public void BroadcastCell<T>(int playerId, MsgId msgId, T packet) where T : IMessage
     {
         _players.TryGetValue(playerId, out var myPlayer);
-        if (myPlayer != null) Broadcast(myPlayer.X, myPlayer.Z, packet);
+        if (myPlayer != null) Broadcast(myPlayer.X, myPlayer.Z, msgId, packet);
     }
 
-    public void BroadcastAll<T>(T packet) where T : BasePacket
+    public void BroadcastAll<T>(MsgId msgId, T packet) where T : IMessage
     {
-        var segment = PacketManager.Instance.Serialize(packet);
-        var packetId = packet.Id;
+        ushort id = (ushort)msgId;
+        var segment = PacketManager.Instance.SerializeProto(id, packet);
+        
         foreach (Player p in _players.Values)
         {
             // SendPacket(p, packet);
-            SendBytes(p, segment, (ushort)packetId);
+            SendBytes(p, segment, id);
         }
     }
 
@@ -240,6 +237,15 @@ public class GameRoom
         {
             LogManager.Info($"Player enter count: {_players.Count}");
         }
+        
+        S_LoginRes res = new S_LoginRes
+        {
+            Success = true,
+            MySessionId = newPlayer.Session.SessionId,
+            SpawnPosX = newPlayer.X, 
+            SpawnPosY = newPlayer.Y, 
+            SpawnPosZ = newPlayer.Z
+        };
 
         List<PlayerInfo> otherPlayerList = new List<PlayerInfo>();
             
@@ -249,27 +255,30 @@ public class GameRoom
             foreach(Player p in nearCell.Players)
             {
                 if(p.Id == newPlayer.Id) continue;
-                otherPlayerList.Add(new PlayerInfo { playerId = p.Id, posX = p.X, posY = p.Y, posZ = p.Z });
+                otherPlayerList.Add(new PlayerInfo { PlayerId = p.Id, PosX = p.X, PosY = p.Y, PosZ = p.Z });
             }
         }
-
-        S_LoginRes res = new()
+        
+        foreach(var info in otherPlayerList)
         {
-            Success = true,
-            MySessionId = newPlayer.Session.SessionId,
-            SpawnPosX = newPlayer.X, SpawnPosY = newPlayer.Y, SpawnPosZ = newPlayer.Z,
-            OtherPlayerInfos = otherPlayerList
-        };
+            // Protocol.PlayerInfo 객체 생성
+            res.OtherPlayerInfos.Add(new PlayerInfo { 
+                PlayerId = info.PlayerId, 
+                PosX = info.PosX, 
+                PosY = info.PosY, 
+                PosZ = info.PosZ 
+            });
+        }
             
-        SendPacket(newPlayer, res);
+        SendPacket(newPlayer, MsgId.IdSLoginRes, res);
             
         // 2. 주변에 내 입장 알림
         S_OnPlayerJoined onPlayerJoined = new()
         {
-            PlayerInfo = new PlayerInfo() { playerId = newPlayer.Id, posX = newPlayer.X, posY = newPlayer.Y, posZ = newPlayer.Z }
+            PlayerInfo = new PlayerInfo() { PlayerId = newPlayer.Id, PosX = newPlayer.X, PosY = newPlayer.Y, PosZ = newPlayer.Z }
         };
             
-        BroadcastExcept(newPlayer.Id, onPlayerJoined);
+        BroadcastExcept(newPlayer.Id, MsgId.IdSOnPlayerJoined, onPlayerJoined);
     }
     
     public void Leave(int playerId)
@@ -277,7 +286,7 @@ public class GameRoom
         if (_players.ContainsKey(playerId))
         {
             // 주변에 퇴장 알림
-            BroadcastExcept(playerId, new S_OnPlayerLeft { PlayerId = playerId });
+            BroadcastExcept(playerId, MsgId.IdSOnPlayerLeft, new S_OnPlayerLeft { PlayerId = playerId });
                 
             if (_players.Remove(playerId, out Player player))
             {
@@ -290,30 +299,25 @@ public class GameRoom
         }
     }
 
-    public void HandleMove(Player player, C_Move packet)
+    public void HandleMove(Player player, float x, float y, float z)
     {
         if (player == null) return;
         
         // 1. East (오른쪽) 이동 판정
-        // 500(경계) + 10(버퍼) = 510을 넘어야 이동!
-        if (packet.X > MapSizeX + HandoverThreshold)
+        if (x > MapSizeX + HandoverThreshold)
         {
             if (ConfigManager.Config.NeighborZones.TryGetValue("East", out ServerConfig.ZoneInfo neighbor))
             {
-                // Console.WriteLine($"[Move] {player.Name}({player.Id}): X: {packet.X}, Y: {packet.Y}, Z: {packet.Z}, MapSizeX: {MapSizeX}, HandoverThreshold: {HandoverThreshold}, SpawnSafetyMargin: {SpawnSafetyMargin}");
-                // 다음 서버의 서쪽 끝(-500) + 안전 거리(20) = -480 위치로 보냄
                 float nextX = -MapSizeX + SpawnSafetyMargin;
                 InitiateHandover(player, neighbor, nextX, player.Z);
                 return;
             }
         }
         // 2. West (왼쪽) 이동 판정
-        // -500(경계) - 10(버퍼) = -510을 넘어야 이동!
-        else if (packet.X < -MapSizeX - HandoverThreshold)
+        else if (x < -MapSizeX - HandoverThreshold)
         {
             if (ConfigManager.Config.NeighborZones.TryGetValue("West", out ServerConfig.ZoneInfo neighbor))
             {
-                // 다음 서버의 동쪽 끝(500) - 안전 거리(20) = 480 위치로 보냄
                 float nextX = MapSizeX - SpawnSafetyMargin;
                 InitiateHandover(player, neighbor, nextX, player.Z);
                 return;
@@ -323,9 +327,9 @@ public class GameRoom
         Cell oldCell = GetCell(player.X, player.Z);
 
         // 1. 서버 메모리 상의 좌표 업데이트
-        player.X = packet.X;
-        player.Y = packet.Y;
-        player.Z = packet.Z;
+        player.X = x;
+        player.Y = y;
+        player.Z = z;
         
         Cell newCell = GetCell(player.X, player.Z);
 
@@ -333,18 +337,42 @@ public class GameRoom
         {
             oldCell.Remove(player);
             newCell.Add(player);
-            // Console.WriteLine($"Player {player.Id} moved to New Cell {GetCellIndex(player.X, player.Z)}");
         }
 
-        S_Move moveRes = new()
-        {
-            PlayerId = player.Id,
-            X = player.X,
-            Y = player.Y,
-            Z = player.Z
-        };
+        // [중요] FlatBuffers를 이용해 주변에 이동 패킷 전송
+        BroadcastMove(player);
+    }
+    
+    private void BroadcastMove(Player player)
+    {
+        // 1. ThreadLocal Builder 가져오기 (재사용, Clear됨)
+        FlatBufferBuilder builder = PacketManager.Instance.GetFlatBufferBuilder();
+
+        // 2. Vec3 생성 (FlatBuffers Struct)
+        var posOffset = Vec3.CreateVec3(builder, player.X, player.Y, player.Z);
         
-        BroadcastCell(player.Id, moveRes);
+        // 3. S_Move 테이블 생성
+        S_Move.StartS_Move(builder);
+        S_Move.AddPlayerId(builder, player.Id);
+        S_Move.AddPos(builder, posOffset);
+        var offset = S_Move.EndS_Move(builder);
+        
+        // 4. 조립 완료
+        builder.Finish(offset.Value);
+
+        // 5. 헤더 붙여서 포장 (ID: 202 - S_Move)
+        var segment = PacketManager.Instance.FinalizeFlatBuffer(builder, (ushort)MsgId.IdSMove);
+
+        // 6. 주변 전송
+        List<Cell> zones = GetNearCells(player.X, player.Z);
+        foreach (Cell cell in zones)
+        {
+            foreach (Player p in cell.Players)
+            {
+                // 이동 패킷은 200번대(UDP Sequenced)로 전송
+                SendBytes(p, segment, (ushort)MsgId.IdSMove);
+            }
+        }
     }
     
     public void HandleChat(Player player, C_Chat packet)
@@ -378,7 +406,7 @@ public class GameRoom
         
             // Console.WriteLine($"[Chat] {player.Name}({player.Id}): {packet.Msg}");
         
-            BroadcastCell(player.Id, chatRes);   
+            BroadcastCell(player.Id, MsgId.IdSChat, chatRes);   
         }
     }
     
@@ -427,7 +455,8 @@ public class GameRoom
             TransferToken = token
         };
 
-        var data = PacketManager.Instance.Serialize(transferPacket);
+        ushort id = (ushort)MsgId.IdSTransferReq;
+        var data = PacketManager.Instance.SerializeProto(id, transferPacket);
         player.Session.Send(data);
 
         // 진짜 퇴장 처리
