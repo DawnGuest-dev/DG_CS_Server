@@ -345,29 +345,19 @@ public class GameRoom
     
     private void BroadcastMove(Player player)
     {
-        // 1. 빌더 가져오기
         FlatBufferBuilder builder = PacketManager.Instance.GetFlatBufferBuilder();
-
-        // 2. [수동 조립 시작] Table 시작
+        
         S_Move.StartS_Move(builder);
-
-        // 3. [중요] Struct(Vec3) 생성 및 추가
-        // 주의: Struct는 Table 안에 'Inline'으로 들어가야 하므로, 
-        // StartS_Move와 EndS_Move 사이에서 생성하고 바로 넣어야 합니다.
         var posOffset = Vec3.CreateVec3(builder, player.X, player.Y, player.Z);
         S_Move.AddPos(builder, posOffset);
-
-        // 4. 나머지 필드 추가
-        S_Move.AddPlayerId(builder, player.Id);
-
-        // 5. [수동 조립 끝] Table 종료
-        var offset = S_Move.EndS_Move(builder);
+        var sMoveOffset = S_Move.EndS_Move(builder);
         
-        // 6. 조립 완료 및 포장
-        builder.Finish(offset.Value);
+        var packetOffset = Protocol.Packet.CreatePacket(builder, PacketData.S_Move, sMoveOffset.Value);
+        
+        builder.Finish(packetOffset.Value);
 
         var segment = PacketManager.Instance.FinalizeFlatBuffer(builder, (ushort)MsgId.IdSMove);
-
+        
         // 7. 전송
         List<Cell> zones = GetNearCells(player.X, player.Z);
         foreach (Cell cell in zones)

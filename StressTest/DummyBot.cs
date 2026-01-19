@@ -114,15 +114,20 @@ public class DummyBot : INetEventListener
             _x += (float)(_rand.NextDouble() - 0.5) * 5f;
             _z += (float)(_rand.NextDouble() - 0.5) * 5f;
 
-            // [수정] FlatBuffers C_Move 전송
-            _flatBuilder.Clear(); // 빌더 재사용 (필수!)
-
-            var posOffset = Vec3.CreateVec3(_flatBuilder, _x, 0, _z);
+            _flatBuilder.Clear(); // 빌더 재사용
             
             C_Move.StartC_Move(_flatBuilder);
+        
+            var posOffset = Vec3.CreateVec3(_flatBuilder, _x, 0, _z);
             C_Move.AddPos(_flatBuilder, posOffset);
-            var offset = C_Move.EndC_Move(_flatBuilder);
-            _flatBuilder.Finish(offset.Value);
+        
+            var cMoveOffset = C_Move.EndC_Move(_flatBuilder);
+
+            // 2. [포장] Packet
+            var packetOffset = Protocol.Packet.CreatePacket(_flatBuilder, PacketData.C_Move, cMoveOffset.Value);
+        
+            // 3. 완료
+            _flatBuilder.Finish(packetOffset.Value);
 
             SendUdp(MsgId.IdCMove, _flatBuilder);
         }

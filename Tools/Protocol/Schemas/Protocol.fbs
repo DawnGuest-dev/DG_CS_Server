@@ -14,3 +14,11 @@ table S_Move {
   player_id:int;
   pos:Vec3;
 }
+
+union PacketData { C_Move, S_Move }
+
+table Packet {
+  data:PacketData; 
+}
+
+root_type Packet;

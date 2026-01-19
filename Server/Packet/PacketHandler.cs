@@ -58,26 +58,30 @@ public class PacketHandler
             // ByteBuffer 생성 (Zero-Copy)
             var bb = new ByteBuffer(buffer.Array, buffer.Offset);
             
-            // Root 가져오기
-            var packet = C_Move.GetRootAsC_Move(bb);
-            
-            var player = session.MyPlayer;
-            if (player == null) return;
+            var rootPacket = Protocol.Packet.GetRootAsPacket(bb);
 
-            // Job 생성 및 데이터 복사
-            MoveJob job = JobPool<MoveJob>.Get();
-            job.Player = player;
-            
-            // Null Check (Pos가 있는지)
-            if (packet.Pos.HasValue)
+            if (rootPacket.DataType == PacketData.C_Move)
             {
-                var pos = packet.Pos.Value;
-                job.X = pos.X;
-                job.Y = pos.Y;
-                job.Z = pos.Z;
-            }
+                var cMove = rootPacket.DataAsC_Move();
+                
+                var player = session.MyPlayer;
+                if (player == null) return;
+                
+                // Job 생성 및 데이터 복사
+                MoveJob job = JobPool<MoveJob>.Get();
+                job.Player = player;
+            
+                // Null Check (Pos가 있는지)
+                if (cMove.Pos.HasValue)
+                {
+                    var pos = cMove.Pos.Value;
+                    job.X = pos.X;
+                    job.Y = pos.Y;
+                    job.Z = pos.Z;
+                }
 
-            GameRoom.Instance.Push(job);
+                GameRoom.Instance.Push(job);
+            }
         }
         catch (Exception ex)
         {

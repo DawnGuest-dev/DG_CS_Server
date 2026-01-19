@@ -28,12 +28,19 @@ public class PacketHandler
     // FlatBuffers 처리
     public static void S_Move(ByteBuffer bb)
     {
-        // Root 가져오기
-        var packet = Protocol.S_Move.GetRootAsS_Move(bb);
+        var rootPacket = Protocol.Packet.GetRootAsPacket(bb);
         
-        // 데이터 접근 (Struct라 값 형식)
-        var pos = packet.Pos.Value;
-        // Console.WriteLine($"[Move] ID: {packet.PlayerId} ({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
+        // 2. [수정] 타입 확인 및 데이터 꺼내기
+        if (rootPacket.DataType == PacketData.S_Move)
+        {
+            var sMove = rootPacket.DataAsS_Move();
+            
+            if (sMove.Pos.HasValue)
+            {
+                var pos = sMove.Pos.Value;
+                // Console.WriteLine($"[Move] ID: {sMove.PlayerId} ({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1})");
+            }
+        }
     }
 
     public static void S_Chat(S_Chat packet)

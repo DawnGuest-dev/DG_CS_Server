@@ -214,24 +214,21 @@ namespace DummyClient
                 if (netManager.FirstPeer != null && netManager.FirstPeer.ConnectionState == ConnectionState.Connected)
                 {
                     _currentX += 0.5f; // 이동 속도
-
-                    // [수정] FlatBuffers C_Move 생성
-                    // 1. 빌더 생성 (1024바이트 정도면 충분)
+                    
                     FlatBufferBuilder builder = new FlatBufferBuilder(1024);
                     
-                    // 2. Struct 생성
-                    var posOffset = Vec3.CreateVec3(builder, _currentX, 0, 0);
-                    
-                    // 3. Table 생성
                     C_Move.StartC_Move(builder);
-                    C_Move.AddPos(builder, posOffset);
-                    var offset = C_Move.EndC_Move(builder);
-                    builder.Finish(offset.Value);
 
-                    // 4. 직렬화 (ID: 201)
-                    byte[] moveBytes = PacketManager.Instance.SerializeFlatBuffer(MsgId.IdCMove, builder);
+                    var posOffset = Vec3.CreateVec3(builder, _currentX, 0, 0);
+                    C_Move.AddPos(builder, posOffset);
+
+                    var cMoveOffset = C_Move.EndC_Move(builder);
                     
-                    // 전송
+                    var packetOffset = Protocol.Packet.CreatePacket(builder, PacketData.C_Move, cMoveOffset.Value);
+                    
+                    builder.Finish(packetOffset.Value);
+
+                    byte[] moveBytes = PacketManager.Instance.SerializeFlatBuffer(MsgId.IdCMove, builder);
                     netManager.FirstPeer.Send(moveBytes, NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
 
 
