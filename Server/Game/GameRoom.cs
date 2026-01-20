@@ -1,7 +1,7 @@
 ﻿using Common;
+using ENet;
 using Google.FlatBuffers;
 using Google.Protobuf;
-using LiteNetLib;
 using Protocol;
 using Server.Core;
 using Server.Data;
@@ -133,7 +133,7 @@ public class GameRoom
         {
             if (buffer.Array != null)
             {
-                player.Session.SendUDP(buffer, NetConfig.Ch_UDP, DeliveryMethod.Sequenced);
+                player.Session.SendUDP(buffer, NetConfig.Ch_UDP, PacketFlags.Unsequenced);
             }
         }
         // [300 ~ ] : RUDP (ReliableOrdered)
@@ -141,7 +141,7 @@ public class GameRoom
         {
             if (buffer.Array != null)
             {
-                player.Session.SendUDP(buffer, NetConfig.Ch_RUDP1, DeliveryMethod.ReliableOrdered);
+                player.Session.SendUDP(buffer, NetConfig.Ch_RUDP1, PacketFlags.Reliable);
             }
         }
     }
@@ -388,7 +388,7 @@ public class GameRoom
             // Redis로 발행
             _ = RedisManager.PublishAsync("GlobalChat", pubMsg);
             
-            LogManager.Info($"[Global Chat] {pubMsg}");
+            // LogManager.Info($"[Global Chat] {pubMsg}");
         }
         else
         {

@@ -1,27 +1,31 @@
-﻿using System.Net;
-using System.Net.Sockets;
+﻿using System.Net.Sockets;
 using Google.FlatBuffers;
 using Google.Protobuf;
-using LiteNetLib;
-using LiteNetLib.Utils;
+using ENet;
 using Protocol;
 using C_LoginReq = Protocol.C_LoginReq;
-using C_Move = Protocol.C_Move;
+using Packet = ENet.Packet;
 using S_LoginRes = Protocol.S_LoginRes;
 
-public class DummyBot : INetEventListener
+public class DummyBot
 {
     private int _id;
-    private NetManager _netManager;
-    private NetPeer _serverPeer;
+    
+    // [TCP]
     private Socket _tcpSocket;
-    private bool _isConnected = false;
-
-    // 이동을 위한 좌표
+    
+    // [UDP - ENet]
+    private Host _enetHost;
+    private Peer _serverPeer;
+    private bool _isUdpConnected = false;
+    
+    // [State]
+    private int _sessionId = 0;
     private float _x = 0;
     private float _z = 0;
     private Random _rand = new Random();
     
+    // [Memory] 재사용 빌더
     private FlatBufferBuilder _flatBuilder = new FlatBufferBuilder(1024);
 
     public DummyBot(int id)
@@ -31,11 +35,9 @@ public class DummyBot : INetEventListener
 
     public void Connect(string ip, int port)
     {
-        // 1. UDP 초기화
-        _netManager = new NetManager(this);
-        _netManager.Start();
-
-        // 2. TCP 접속 시도
+        _enetHost = new Host();
+        _enetHost.Create();
+        
         ConnectTcp(ip, port);
     }
 
@@ -45,18 +47,16 @@ public class DummyBot : INetEventListener
         {
             _tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             _tcpSocket.Connect(ip, port);
-
-            // 3. 로그인 패킷 전송
+            
             C_LoginReq req = new C_LoginReq()
             {
-                AuthToken = $"Dummy_{Guid.NewGuid()}", // 랜덤 아이디
+                AuthToken = $"Bot_{_id}_{Guid.NewGuid()}", 
                 TransferToken = ""
             };
 
             SendTcp(MsgId.IdCLoginReq, req);
             
-            // 4. TCP 응답 대기 (간단하게 블로킹으로 처리)
-            Thread t = new Thread(RecvTcpLoop);
+            Thread t = new Thread(() => RecvTcpLoop(ip, port));
             t.IsBackground = true;
             t.Start();
         }
@@ -66,7 +66,7 @@ public class DummyBot : INetEventListener
         }
     }
 
-    private void RecvTcpLoop()
+    private void RecvTcpLoop(string ip, int port)
     {
         byte[] buffer = new byte[4096];
         while (_tcpSocket != null && _tcpSocket.Connected)
@@ -78,16 +78,16 @@ public class DummyBot : INetEventListener
 
                 if (recv > 4)
                 {
-                    // ID 확인 (Offset 2)
                     ushort id = BitConverter.ToUInt16(buffer, 2);
                     
                     if (id == (ushort)MsgId.IdSLoginRes)
                     {
-                        // Protobuf Parse
                         var res = S_LoginRes.Parser.ParseFrom(new ReadOnlySpan<byte>(buffer, 4, recv - 4));
                         if (res.Success)
                         {
-                            ConnectUdp(res.MySessionId);
+                            _sessionId = res.MySessionId;
+                            
+                            ConnectUdp(ip, port);
                         }
                     }
                 }
@@ -96,40 +96,63 @@ public class DummyBot : INetEventListener
         }
     }
 
-    private void ConnectUdp(int sessionId)
+    private void ConnectUdp(string ip, int port)
     {
-        NetDataWriter writer = new NetDataWriter();
-        writer.Put(sessionId);
-        // 로컬호스트 & 포트 하드코딩 (테스트 대상 서버)
-        _netManager.Connect("127.0.0.1", 12345, writer); 
+        Address address = new Address();
+        address.SetHost(ip);
+        address.Port = (ushort)port;
+
+        // ENet Connect
+        _serverPeer = _enetHost.Connect(address, 3);
     }
 
     public void Update()
     {
-        _netManager?.PollEvents();
-
-        if (_isConnected)
+        if (_enetHost.IsSet)
         {
-            // 좌표 업데이트
+            if (_enetHost.Service(0, out Event netEvent) > 0)
+            {
+                do
+                {
+                    switch (netEvent.Type)
+                    {
+                        case EventType.Connect:
+                            SendUdpAuth(_sessionId);
+                            _isUdpConnected = true;
+                            break;
+
+                        case EventType.Receive:
+                            netEvent.Packet.Dispose(); // 메모리 해제 필수
+                            break;
+
+                        case EventType.Disconnect:
+                            _isUdpConnected = false;
+                            break;
+                    }
+                } while (_enetHost.CheckEvents(out netEvent) > 0);
+            }
+        }
+
+        // 2. 이동 패킷 전송
+        if (_isUdpConnected)
+        {
             _x += (float)(_rand.NextDouble() - 0.5) * 5f;
             _z += (float)(_rand.NextDouble() - 0.5) * 5f;
 
             _flatBuilder.Clear(); // 빌더 재사용
             
             C_Move.StartC_Move(_flatBuilder);
-        
+            
             var posOffset = Vec3.CreateVec3(_flatBuilder, _x, 0, _z);
             C_Move.AddPos(_flatBuilder, posOffset);
-        
+            
             var cMoveOffset = C_Move.EndC_Move(_flatBuilder);
 
-            // 2. [포장] Packet
             var packetOffset = Protocol.Packet.CreatePacket(_flatBuilder, PacketData.C_Move, cMoveOffset.Value);
         
-            // 3. 완료
             _flatBuilder.Finish(packetOffset.Value);
 
-            SendUdp(MsgId.IdCMove, _flatBuilder);
+            SendUdpFlatBuffer(MsgId.IdCMove, _flatBuilder, 1, PacketFlags.None);
         }
     }
 
@@ -146,36 +169,32 @@ public class DummyBot : INetEventListener
         _tcpSocket.Send(buffer);
     }
 
-    private void SendUdp(MsgId msgId, FlatBufferBuilder builder)
+    private void SendUdpAuth(int sessionId)
     {
-        // Builder 데이터 추출
+        byte[] buffer = BitConverter.GetBytes(sessionId);
+        
+        Packet packet = default;
+        packet.Create(buffer, PacketFlags.Reliable);
+        _serverPeer.Send(0, ref packet);
+    }
+
+    private void SendUdpFlatBuffer(MsgId msgId, FlatBufferBuilder builder, byte channel, PacketFlags flags)
+    {
         var buf = builder.DataBuffer;
         int bodyStart = buf.Position;
         int bodyLen = buf.Length - bodyStart;
         
         int size = 4 + bodyLen;
-        byte[] buffer = new byte[size]; // 최적화하려면 재사용 버퍼 사용 권장
+        byte[] buffer = new byte[size];
 
         BitConverter.TryWriteBytes(new Span<byte>(buffer, 0, 2), (ushort)size);
         BitConverter.TryWriteBytes(new Span<byte>(buffer, 2, 2), (ushort)msgId);
+        
+        var bodySpan = buf.ToArray(bodyStart, bodyLen);
+        bodySpan.CopyTo(new Span<byte>(buffer, 4, bodyLen));
 
-        // Body Copy (Zero-Copy를 위해 Span 사용)
-        buf.ToArray(bodyStart, bodyLen).CopyTo(new Span<byte>(buffer, 4, bodyLen));
-
-        _serverPeer.Send(buffer, DeliveryMethod.Sequenced);
+        Packet packet = default;
+        packet.Create(buffer, flags);
+        _serverPeer.Send(channel, ref packet);
     }
-
-    // --- LiteNetLib Interface ---
-    public void OnPeerConnected(NetPeer peer)
-    {
-        _isConnected = true;
-        _serverPeer = peer;
-        // Console.WriteLine($"[Bot {_id}] UDP Connected!");
-    }
-    public void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte ch, DeliveryMethod dm) { }
-    public void OnPeerDisconnected(NetPeer peer, DisconnectInfo info) { _isConnected = false; }
-    public void OnNetworkError(IPEndPoint endPoint, SocketError socketError) { }
-    public void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader, UnconnectedMessageType messageType) { }
-    public void OnNetworkLatencyUpdate(NetPeer peer, int latency) { }
-    public void OnConnectionRequest(ConnectionRequest request) { }
 }

@@ -2,7 +2,7 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
-using LiteNetLib;
+using ENet;
 using Server.Game;
 using Server.Packet;
 using Server.Utils;
@@ -12,7 +12,8 @@ namespace Server.Core;
 public abstract class Session
 {
     public int SessionId { get; set; }
-    public NetPeer UdpPeer { get; set; }
+    
+    public Peer EnetPeer { get; set; }
     
     private Socket _socket;
     private int _disconnected = 0;
@@ -168,6 +169,11 @@ public abstract class Session
             // ignored
         }
 
+        if (EnetPeer.IsSet)
+        {
+            EnetPeer.Disconnect(0);
+        }
+
 
         _pendingList.Clear();
     }
@@ -255,18 +261,25 @@ public abstract class Session
             buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset + dataSize, buffer.Count - dataSize);
         }
 
-        return processLen; // 총 처리한 바이트 수 반환
+        return processLen;
     }
     
     public abstract void OnConnected(EndPoint endPoint);
     public abstract void OnDisconnected(EndPoint endPoint);
     
     // UDP
-    public void SendUDP(ArraySegment<byte> buffer, byte channel, DeliveryMethod deliveryMethod)
+    public void SendUDP(ArraySegment<byte> buffer, byte channel, PacketFlags flags = PacketFlags.None)
     {
-        if (UdpPeer != null)
+        if (EnetPeer.IsSet)
         {
-            UdpPeer.Send(buffer.Array, buffer.Offset, buffer.Count, channel, deliveryMethod);
+            ENet.Packet packet = default;
+            
+            if (buffer.Array != null)
+            {
+                packet.Create(buffer.Array, buffer.Offset, buffer.Count, flags);
+            }
+            
+            EnetPeer.Send(channel, ref packet);
         }
     }
     

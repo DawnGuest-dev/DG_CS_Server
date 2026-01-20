@@ -9,58 +9,68 @@ class Program
 
     static void Main(string[] args)
     {
-        Console.WriteLine("=== Distributed Game Server Load Tester (High Perf) ===");
-        Console.Write("Enter Bot Count (ex. 1000): ");
-        if (!int.TryParse(Console.ReadLine(), out int botCount)) return;
+        ENet.Library.Initialize();
 
-        Console.Write("Target IP (default: 127.0.0.1): ");
-        string ip = Console.ReadLine();
-        if (string.IsNullOrEmpty(ip)) ip = "127.0.0.1";
-
-        Console.Write("Target Port (default: 12345): ");
-        string portStr = Console.ReadLine();
-        int port = string.IsNullOrEmpty(portStr) ? 12345 : int.Parse(portStr);
-
-        // 1. 업데이트 루프 실행 (별도 태스크)
-        // 봇이 추가되는 즉시 관리하기 시작함
-        Task.Run(UpdateLoop);
-
-        Console.WriteLine($"[System] Spawning {botCount} bots to {ip}:{port}...");
-        Stopwatch sw = Stopwatch.StartNew();
-
-        // 2. [최적화 핵심] 병렬 접속 (Parallel Connection)
-        // Main 스레드 혼자 만드는 게 아니라, CPU 코어를 다 써서 동시에 접속 요청을 날림
-        Parallel.For(0, botCount, new ParallelOptions { MaxDegreeOfParallelism = 32 }, (i) =>
+        try
         {
-            try
+            Console.WriteLine("=== Distributed Game Server Load Tester (High Perf) ===");
+            Console.Write("Enter Bot Count (ex. 1000): ");
+            if (!int.TryParse(Console.ReadLine(), out int botCount)) return;
+
+            Console.Write("Target IP (default: 127.0.0.1): ");
+            string ip = Console.ReadLine();
+            if (string.IsNullOrEmpty(ip)) ip = "127.0.0.1";
+
+            Console.Write("Target Port (default: 12345): ");
+            string portStr = Console.ReadLine();
+            int port = string.IsNullOrEmpty(portStr) ? 12345 : int.Parse(portStr);
+
+            // 1. 업데이트 루프 실행 (별도 태스크)
+            // 봇이 추가되는 즉시 관리하기 시작함
+            Task.Run(UpdateLoop);
+
+            Console.WriteLine($"[System] Spawning {botCount} bots to {ip}:{port}...");
+            Stopwatch sw = Stopwatch.StartNew();
+
+            // 2. [최적화 핵심] 병렬 접속 (Parallel Connection)
+            // Main 스레드 혼자 만드는 게 아니라, CPU 코어를 다 써서 동시에 접속 요청을 날림
+            Parallel.For(0, botCount, new ParallelOptions { MaxDegreeOfParallelism = 32 }, (i) =>
             {
-                DummyBot bot = new DummyBot(i);
-                
-                // Connect 내부가 동기 방식이면 여기서 약간의 블로킹이 발생하지만 
-                // Parallel 덕분에 32개가 동시에 시도됨.
-                bot.Connect(ip, port); 
-                
-                bots.Add(bot);
+                try
+                {
+                    DummyBot bot = new DummyBot(i);
 
-                // 로그 너무 많이 찍으면 콘솔이 느려지므로 100단위만 출력
-                if (bots.Count % 100 == 0) 
-                    Console.WriteLine($"[System] Connected: {bots.Count}/{botCount}");
-            }
-            catch (Exception e)
+                    // Connect 내부가 동기 방식이면 여기서 약간의 블로킹이 발생하지만 
+                    // Parallel 덕분에 32개가 동시에 시도됨.
+                    bot.Connect(ip, port);
+
+                    bots.Add(bot);
+
+                    // 로그 너무 많이 찍으면 콘솔이 느려지므로 100단위만 출력
+                    if (bots.Count % 100 == 0)
+                        Console.WriteLine($"[System] Connected: {bots.Count}/{botCount}");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[Error] Bot {i} failed: {e.Message}");
+                }
+            });
+
+            sw.Stop();
+            Console.WriteLine($"[System] All {bots.Count} Bots Spawned in {sw.Elapsed.TotalSeconds:F2}s!");
+
+            // 종료 방지
+            while (true)
             {
-                Console.WriteLine($"[Error] Bot {i} failed: {e.Message}");
+                string cmd = Console.ReadLine();
+                if (cmd == "q") break;
             }
-        });
-
-        sw.Stop();
-        Console.WriteLine($"[System] All {bots.Count} Bots Spawned in {sw.Elapsed.TotalSeconds:F2}s!");
-
-        // 종료 방지
-        while (true)
-        {
-            string cmd = Console.ReadLine();
-            if (cmd == "q") break;
         }
+        finally
+        {
+            ENet.Library.Deinitialize();
+        }
+        
     }
 
     // 3. [최적화 핵심] 병렬 업데이트 루프

@@ -33,7 +33,7 @@ namespace Server
     internal class Program
     {
         static Listener _listener = new();
-        static RudpHandler _rudpHandler = new();
+        static EnetServer _enetServer = new();
         
         static volatile bool _isRunning = true;
         
@@ -70,7 +70,7 @@ namespace Server
             _listener.Init(endPoint, () => { return SessionManager.Instance.Generate<GameSession>();});
             
             // RUDP 시작
-            _rudpHandler.Init(port);
+            _enetServer.Init((ushort)port);
             
             LogManager.Info($"Listening on {host}:{port}, Zone: {zoneIdx}");
             
@@ -82,7 +82,7 @@ namespace Server
                 long start = Environment.TickCount64;
                 
                 
-                _rudpHandler.Update();
+                _enetServer.Update();
                 GameRoom.Instance.Update();
                 
                 long end = Environment.TickCount64;
@@ -107,6 +107,8 @@ namespace Server
         private static void CleanUp()
         {
             SessionManager.Instance.KickAll();
+
+            _enetServer.Stop();
             
             LogManager.Info("Server Shutdown Complete.");
             LogManager.Stop();
